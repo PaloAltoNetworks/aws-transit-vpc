@@ -1,0 +1,853 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Metadata": {
+        "AWS::CloudFormation::Interface": {
+          "ParameterGroups": [
+            { "Label": { "default": "Required Parameters" }, "Parameters": [ "TransitSNSTopicArn", "TransitAssumeRoleArn", "TransitAWSAccountNumber", "LambdaFunctionsBucketName", "SshKey", "az1", "az2" ] },
+            { "Label": { "default": "Default Parameters" }, "Parameters": [ "LaunchSubscriberVpc", "LambdaZipFile", "CloudTrailS3BucketName", "VpcCidrRange", "SubnetCidr1", "SubnetCidr2", "SubnetCidr3", "SubnetCidr4" ] }
+          ]
+        }
+    },
+  "Parameters": {
+    "LambdaFunctionsBucketName": {
+      "Description": "Existing S3 bucket name which is having the Lambda funtions zip",
+      "Type": "String"
+    },
+    "TransitAWSAccountNumber": {
+      "Description": "Trasit AWS Account number required for Assume Role",
+      "Type": "String"
+    },
+    "LambdaZipFile": {
+      "Description": "Lambda code zip filename which is stored in above mentioned Required parameters LambdaFunctionsBucketName",
+      "Type": "String",
+      "Default": "lambda.zip"
+    },
+    "VpcCidrRange" : {
+        "Description" : "Give the VPC CIDR range to create VPC",
+        "Type" : "String",
+        "Default": "10.10.0.0/17"
+    },
+    "SubnetCidr1" : {
+        "Description" : "Give the CIDR range to create subnet",
+        "Type" : "String",
+        "Default": "10.10.1.0/24"
+    },
+    "SubnetCidr2" : {
+        "Description" : "Give the CIDR range to create subnet",
+        "Type" : "String",
+        "Default": "10.10.2.0/24"
+    },
+    "SubnetCidr3" : {
+        "Description" : "Give the CIDR range to create subnet",
+        "Type" : "String",
+        "Default": "10.10.3.0/24"
+    },
+    "SubnetCidr4" : {
+        "Description" : "Give the CIDR range to create subnet",
+        "Type" : "String",
+        "Default": "10.10.4.0/24"
+    },
+    "az1" : {
+        "Description" : "Select AvailabilityZone 1",
+        "Type" : "AWS::EC2::AvailabilityZone::Name",
+        "Default": "us-east-1a"
+    },
+    "az2" : {
+        "Description" : "Select AvailabilityZone 2",
+        "Type" : "AWS::EC2::AvailabilityZone::Name",
+        "Default": "us-east-1b"
+    },
+    "TransitSNSTopicArn": {
+        "Description": "Transit Account SNS Topic ARN",
+        "Type": "String"
+    },
+    "TransitAssumeRoleArn": {
+        "Description": "Transit Account Assume Role ARN",
+        "Type": "String"
+    },
+    "CloudTrailS3BucketName": {
+        "Description": "Creates a S3-Bucket Name for storing the CloudTrails logs. NOTE: Dont USE Capital letters, and S3 bucket names are globally unique, regardless of the AWS Region and AWS Account. So please prepend/append your aws account number to the name of bucket to avoid stack creation failure",
+        "Type": "String",
+        "Default": "subscribe-cloudtrail-bucket"
+    },
+    "LaunchSubscriberVpc": {
+        "Default": "No",
+        "ConstraintDescription": "Must be Yes or No",
+        "Type": "String",
+        "Description": "Select a Value",
+        "AllowedValues": [ "Yes", "No" ]
+    },
+    "SshKey" : {
+        "Description" : "SSH key to associate with NAT Server in NewVPC",
+        "Type" : "AWS::EC2::KeyPair::KeyName"
+    }
+  },
+  "Conditions": {
+    "SubscriberVpc": {  "Fn::Equals": [ { "Ref": "LaunchSubscriberVpc" }, "Yes" ]  }
+  },
+  "Resources": {
+    "SubscriberAssumeRole":{
+        "Type": "AWS::IAM::Role",
+        "Properties": {
+            "RoleName": {"Fn::Join": ["-", ["SubscriberAssumeRole", { "Ref": "AWS::StackName" }]]},
+            "AssumeRolePolicyDocument": {
+               "Version" : "2012-10-17",
+               "Statement": [ {
+                  "Effect": "Allow",
+                  "Principal": {
+                     "AWS": "arn:aws:iam::210278571640:root",
+                     "AWS": { "Fn::Join": [":", ["arn:aws:iam:", {"Ref":"TransitAWSAccountNumber"}, "root"]]}
+                  },
+                  "Action": [ "sts:AssumeRole" ]
+               } ]
+            },
+            "Path": "/",
+            "Policies": [ {
+               "PolicyName": {"Fn::Join": ["-", ["SubscriberAssumeRolePolicy", { "Ref": "AWS::StackName" }]]},
+               "PolicyDocument": {
+                "Version" : "2012-10-17",
+                "Statement": [
+                    {
+                        "Sid": "S3Actions",
+                        "Effect": "Allow",
+                        "Action": [
+                        "s3:GetBucketAcl",
+                        "s3:GetBucketLocation",
+                        "s3:GetObject",
+                        "s3:GetObjectAcl",
+                        "s3:ListBucket",
+                        "s3:PutObject",
+                        "s3:PutObjectAcl",
+                        "s3:PutObjectTagging"
+                        ],
+                        "Resource": ["*"]
+                    },
+                    {
+                        "Sid": "SNSACtions",
+                        "Effect": "Allow",
+                        "Action": [
+                        "sns:Publish"
+                        ],
+                        "Resource": ["*"]
+                    }
+                ]
+               }
+            }]
+        }
+    },
+    "EnableCloudTrail": {
+        "Type" : "AWS::CloudTrail::Trail",
+        "DependsOn": ["CloudTrailS3Bucket", "S3CloudTrailPolicy"],
+        "Properties" : {
+            "TrailName" : "AllRegions",
+            "IncludeGlobalServiceEvents" : true,
+            "IsLogging" : true,
+            "IsMultiRegionTrail" : true,
+            "S3BucketName" : {"Ref":"CloudTrailS3Bucket"}
+        }
+    },
+    "CloudTrailS3Bucket": {
+        "Type" : "AWS::S3::Bucket",
+        "DependsOn": ["CloudTrailLambda"],
+        "Properties" : {
+            "BucketName" : {"Ref":"CloudTrailS3BucketName"},
+            "NotificationConfiguration" : {
+                "LambdaConfigurations" : [{
+                    "Function" : {"Fn::GetAtt": ["CloudTrailLambda","Arn"]},
+                    "Event" : "s3:ObjectCreated:Put"
+                }]
+            }
+        }
+    },
+    "S3CloudTrailPolicy": {
+        "Type": "AWS::S3::BucketPolicy",
+        "DependsOn": ["CloudTrailS3Bucket"],
+        "Properties": {
+            "Bucket": {"Ref": "CloudTrailS3Bucket"},
+            "PolicyDocument": {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Sid": "AWSCloudTrailAclCheck20150319",
+                        "Effect": "Allow",
+                        "Principal": {"Service": "cloudtrail.amazonaws.com"},
+                        "Action": "s3:GetBucketAcl",
+                        "Resource": { "Fn::Join": [":", ["arn:aws:s3::", {"Ref": "CloudTrailS3Bucket"}]]}
+                    },
+                    {
+                        "Sid": "AWSCloudTrailWrite20150319",
+                        "Effect": "Allow",
+                        "Principal": {"Service": "cloudtrail.amazonaws.com"},
+                        "Action": "s3:PutObject",
+                        "Resource": {"Fn::Join": [ "", ["arn:aws:s3:::", {"Ref": "CloudTrailS3Bucket"}, "/AWSLogs/", {"Ref": "AWS::AccountId"}, "/*"]]},
+                        "Condition": {
+                            "StringEquals": {
+                                "s3:x-amz-acl": "bucket-owner-full-control"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "BucketLambdaPermission": {
+        "Type": "AWS::Lambda::Permission",
+        "DependsOn": ["CloudTrailLambda"],
+        "Properties" : {
+            "Action": "lambda:InvokeFunction",
+            "FunctionName": {"Fn::GetAtt": ["CloudTrailLambda","Arn"]},
+            "Principal": "s3.amazonaws.com",
+            "SourceAccount": {"Ref": "AWS::AccountId"},
+            "SourceArn": { "Fn::Join": [":", [
+                "arn", "aws", "s3", "" , "", {"Ref" : "CloudTrailS3BucketName"}]]
+            }
+        }
+    },
+    "SQSFifoQueue": {
+        "Type" : "AWS::SQS::Queue",
+        "Properties" : {
+            "FifoQueue" : true,
+            "ContentBasedDeduplication" : true,
+            "QueueName": {"Fn::Join": ["-", [{ "Ref": "AWS::StackName" },"subscriberFifoQueue.fifo"]]},
+            "ReceiveMessageWaitTimeSeconds": 10,
+            "VisibilityTimeout": 30
+        }
+    },
+    "SNSTopic": {
+            "Type" : "AWS::SNS::Topic",
+            "Properties" : {
+                    "DisplayName" : "subscriberSnsTopic",
+                    "TopicName" : {"Fn::Join": ["-", ["subscriberSnsTopic", { "Ref": "AWS::StackName" }]]}
+            }
+    },
+    "SNSSubscription": {
+            "Type" : "AWS::SNS::Subscription",
+            "DependsOn": "SubscriberDeciderLambda",
+            "Properties" : {
+                    "Endpoint" : {"Fn::GetAtt": ["SubscriberDeciderLambda","Arn"]},
+                    "Protocol" : "lambda",
+                    "TopicArn" : {"Ref":"SNSTopic"}
+            }
+    },
+    "LambdaPermission": {
+            "Type" : "AWS::Lambda::Permission",
+            "Properties" : {
+                    "Action" : "lambda:InvokeFunction",
+                    "FunctionName" : {"Fn::GetAtt": ["SubscriberDeciderLambda","Arn"]},
+                    "Principal" : "sns.amazonaws.com"
+            }
+    },
+    "SubscriberDeciderLambda": {
+        "Type": "AWS::Lambda::Function",
+        "DependsOn": ["LambdaExecutionRole","SubscrierStateMachine","SQSFifoQueue","SNSTopic"],
+        "Properties": {
+            "FunctionName": {"Fn::Join": ["-", ["subscriberDeciderLambda", { "Ref": "AWS::StackName" }]]},
+            "Description": "subscriber Decider Lambda",
+            "Handler": "subscriberDeciderLambda.lambda_handler",
+            "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+            "Code": {
+              "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+              "S3Key": {"Ref": "LambdaZipFile"}
+            },
+            "Environment": {
+                "Variables":{
+                    "subscriberConfigTable":{"Ref":"DynamoDbSubscriberConfig"},
+                    "Region": {"Ref": "AWS::Region"},
+                }
+            },
+            "Runtime": "python3.6",
+            "Timeout": "300"
+        }
+    },
+    "CloudTrailLambda": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": {"Fn::Join": ["-", ["cloudTrailLambda", { "Ref": "AWS::StackName" }]]},
+        "Description": "CloudTrail Lambda triggers when a Object:Put operation on bucket",
+        "Handler": "cloudtrailLambda.lambda_handler",
+        "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+        "Code": {
+          "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+          "S3Key": {"Ref": "LambdaZipFile"}
+        },
+        "Environment": {
+            "Variables":{
+                "subscriberSnsTopicArn":{"Ref":"SNSTopic"},
+                "subscriberConfigTable":{"Ref":"DynamoDbSubscriberConfig"},
+                "transitSnsTopicArn":{"Ref":"TransitSNSTopicArn"},
+                "Region": {"Ref": "AWS::Region"},
+            }
+        },
+        "Runtime": "python3.6",
+        "Timeout": "300"
+      },
+      "DependsOn": [
+        "LambdaExecutionRole"
+      ]
+    },
+    "CreateVpcLambda": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": {"Fn::Join": ["-", ["createVpcLambda", { "Ref": "AWS::StackName" }]]},
+        "Description": "CloudTrail Lambda triggers when a Object:Put operation on bucket",
+        "Handler": "createVpcLambda.lambda_handler",
+        "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+        "Code": {
+          "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+          "S3Key": {"Ref": "LambdaZipFile"}
+        },
+        "Environment": {
+            "Variables":{
+                "transitSnsTopicArn":{"Ref":"TransitSNSTopicArn"},
+                "transitAssumeRoleArn":{"Ref":"TransitAssumeRoleArn"},
+                "Region": {"Ref": "AWS::Region"},
+                "subscriberConfigTable": {"Ref": "DynamoDbSubscriberConfig"}
+            }
+        },
+        "Runtime": "python3.6",
+        "Timeout": "300"
+      },
+      "DependsOn": ["LambdaExecutionRole"]
+    },
+    "FetchFromSubscriberQueueLambda": {
+        "Type": "AWS::Lambda::Function",
+        "Properties": {
+            "FunctionName": {"Fn::Join": ["-", ["fetchFromSubscriberQueueLambda", { "Ref": "AWS::StackName" }]]},
+            "Description": "Fetch one message from Subscriber queue",
+            "Handler": "fetchFromSubscriberQueueLambda.lambda_handler",
+            "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+            "Code": {
+              "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+              "S3Key": {"Ref": "LambdaZipFile"}
+            },
+            "Environment": {
+                "Variables":{
+                    "subscriberConfigTable": {"Ref": "DynamoDbSubscriberConfig"},
+                    "Region": {"Ref": "AWS::Region"}
+                }
+            },
+            "Runtime": "python3.6",
+            "Timeout": "300"
+        },
+        "DependsOn": ["LambdaExecutionRole"]
+    },
+    "ConfigureSubscribingVpcVpnLambda": {
+        "Type": "AWS::Lambda::Function",
+        "Properties": {
+            "FunctionName": {"Fn::Join": ["-", ["configureSubscribingVpcVpn", { "Ref": "AWS::StackName" }]]},
+            "Description": "configure Subscribing Vpc Vpn",
+            "Handler": "configureSubscribingVpcVpnLambda.lambda_handler",
+            "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+            "Code": {
+              "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+              "S3Key": {"Ref": "LambdaZipFile"}
+            },
+            "Environment": {
+                "Variables":{
+                    "subscriberConfigTable": {"Ref": "DynamoDbSubscriberConfig"},
+                    "Region": {"Ref": "AWS::Region"}
+                }
+            },
+            "Runtime": "python3.6",
+            "Timeout": "300"
+        }
+    },
+    "VpnConfiguredLambda": {
+        "Type": "AWS::Lambda::Function",
+        "Properties": {
+            "FunctionName": {"Fn::Join": ["-", ["vpnConfiguredLambda", { "Ref": "AWS::StackName" }]]},
+            "Description": "Vpn Configured Lambda",
+            "Handler": "vpnConfiguredLambda.lambda_handler",
+            "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+            "Code": {
+              "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+              "S3Key": {"Ref": "LambdaZipFile"}
+            },
+            "Environment": {
+                "Variables":{
+                    "subscriberLocalDb":{"Ref":"DynamoDbSubscriberLocalDb"},
+                    "Region": {"Ref": "AWS::Region"}
+                }
+            },
+            "Runtime": "python3.6",
+            "Timeout": "300"
+        }
+    },
+    "VpnFailedLambda": {
+        "Type": "AWS::Lambda::Function",
+        "Properties": {
+            "FunctionName": {"Fn::Join": ["-", ["vpnFailedLambda", { "Ref": "AWS::StackName" }]]},
+            "Description": "Vpn Failed Lambda",
+            "Handler": "vpnFailedLambda.lambda_handler",
+            "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+            "Code": {
+              "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+              "S3Key": {"Ref": "LambdaZipFile"}
+            },
+            "Environment": {
+                "Variables":{
+                    "subscriberLocalDb":{"Ref":"DynamoDbSubscriberLocalDb"},
+                    "Region": {"Ref": "AWS::Region"}
+                }
+            },
+            "Runtime": "python3.6",
+            "Timeout": "300"
+        }
+    },
+    "DeleteVpnConnectionLambda": {
+        "Type": "AWS::Lambda::Function",
+        "Properties": {
+            "FunctionName": {"Fn::Join": ["-", ["deleteVpnConnectionLambda", { "Ref": "AWS::StackName" }]]},
+            "Description": "Detected Delete Vpn Connection Lambda",
+            "Handler": "deleteVpnConnectionLambda.lambda_handler",
+            "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+            "Code": {
+              "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+              "S3Key": {"Ref": "LambdaZipFile"}
+            },
+            "Environment": {
+                "Variables":{
+                    "transitSnsTopicArn":{"Ref":"TransitSNSTopicArn"},
+                    "transitAssumeRoleArn":{"Ref":"TransitAssumeRoleArn"},
+                    "subscriberConfigTable": {"Ref": "DynamoDbSubscriberConfig"},
+                    "Region": {"Ref": "AWS::Region"}
+                }
+            },
+            "Runtime": "python3.6",
+            "Timeout": "300"
+        }
+    },
+    "DefaultStateLambda": {
+        "Type": "AWS::Lambda::Function",
+        "Properties": {
+            "FunctionName": {"Fn::Join": ["-", ["defaultStateLambda", { "Ref": "AWS::StackName" }]]},
+            "Description": "State Machine choice Type default state Lambda",
+            "Handler": "index.handler",
+            "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+            "Code": {
+                "ZipFile": {"Fn::Join": ["\n", [
+                       "def handler(event,context):",
+                       "    print(event) "
+                    ]]
+                }
+            },
+            "Runtime": "python3.6",
+            "Timeout": "300"
+        }
+    },
+    "DynamoDbSubscriberConfig": {
+        "Type" : "AWS::DynamoDB::Table",
+        "Properties" : {
+            "AttributeDefinitions" : [{"AttributeName" : "Property","AttributeType" : "S"}],
+            "KeySchema" : [{"AttributeName" : "Property","KeyType" : "HASH"}],
+            "ProvisionedThroughput" : {
+                "ReadCapacityUnits" : "5",
+                "WriteCapacityUnits" : "5"
+            },
+            "TableName" : {"Fn::Join": ["-", ["SubscriberConfig", { "Ref": "AWS::StackName" }]]}
+        }
+    },
+    "DynamoDbSubscriberLocalDb": {
+        "Type" : "AWS::DynamoDB::Table",
+        "Properties" : {
+            "AttributeDefinitions" : [{"AttributeName" : "VpcId","AttributeType" : "S"}],
+            "KeySchema" : [{"AttributeName" : "VpcId", "KeyType" : "HASH"}],
+            "ProvisionedThroughput" : {
+                "ReadCapacityUnits" : "5",
+                "WriteCapacityUnits" : "5"
+            },
+            "TableName" : {"Fn::Join": ["-", ["SubscriberLocalDb", { "Ref": "AWS::StackName" }]]}
+        }
+    },
+    "DynamoDbSubscriberVpcVpnTable": {
+        "Type" : "AWS::DynamoDB::Table",
+        "Properties" : {
+            "AttributeDefinitions" : [{"AttributeName" : "VpnId","AttributeType" : "S"}],
+            "KeySchema" : [{"AttributeName" : "VpnId", "KeyType" : "HASH"}],
+            "ProvisionedThroughput" : {
+                "ReadCapacityUnits" : "5",
+                "WriteCapacityUnits" : "5"
+            },
+            "TableName" : {"Fn::Join": ["-", ["SubscriberVpcVpnTable", { "Ref": "AWS::StackName" }]]}
+        }
+    },
+    "LambdaExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {"Fn::Join": ["-", ["SubscriberLambdaExecutionRole", { "Ref": "AWS::StackName" }]]},
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "lambda.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Path": "/"
+      }
+    },
+    "LambdaExecutionPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": {"Fn::Join": ["-", ["LambdaExecutionPolicy", { "Ref": "AWS::StackName" }]]},
+        "Roles": [{"Ref": "LambdaExecutionRole"}],
+        "PolicyDocument": {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                                {
+                                        "Sid": "STSAccumRole",
+                                        "Effect": "Allow",
+                                        "Action": ["sts:AssumeRole"],
+                                        "Resource": ["*"]
+                                },
+                                {
+                                        "Sid": "EC2VPCRelatedActions",
+                                        "Effect": "Allow",
+                                        "Action": [
+                                                "ec2:AttachVpnGateway",
+                                                "ec2:CreateCustomerGateway",
+                                                "ec2:CreateTags",
+                                                "ec2:CreateVpnConnection",
+                                                "ec2:CreateVpnGateway",
+                                                "ec2:DeleteCustomerGateway",
+                                                "ec2:DeleteVpnConnection",
+                                                "ec2:DeleteVpnGateway",
+                                                "ec2:DescribeCustomerGateways",
+                                                "ec2:DescribeTags",
+                                                "ec2:DescribeVpcs",
+                                                "ec2:DescribeVpnConnections",
+                                                "ec2:DescribeVpnGateways",
+                                                "ec2:DetachVpnGateway",
+                                                "ec2:DeleteTags"
+                                        ],
+                                        "Resource": ["*"]
+                                },
+                                {
+                                        "Sid": "StateMachineActions",
+                                        "Effect": "Allow",
+                                        "Action": [
+                                                "states:ListExecutions",
+                                                "states:StartExecution"
+                                        ],
+                                        "Resource": ["*"]
+                                },
+                                {
+                                        "Sid": "Logs",
+                                        "Effect": "Allow",
+                                        "Action": [
+                                                "logs:CreateLogGroup",
+                                                "logs:CreateLogStream",
+                                                "logs:PutLogEvents"
+                                        ],
+                                        "Resource": ["*"]
+                                },
+                                {
+                                        "Sid": "S3Actions",
+                                        "Effect": "Allow",
+                                        "Action": [
+                                                "s3:GetBucketAcl",
+                                                "s3:GetBucketLocation",
+                                                "s3:GetObject",
+                                                "s3:GetObjectAcl",
+                                                "s3:ListBucket",
+                                                "s3:PutObject",
+                                                "s3:PutObjectAcl",
+                                                "s3:PutObjectTagging"
+                                        ],
+                                        "Resource": ["*"]
+                                },
+                                {
+                                        "Sid": "DynamoDbActions",
+                                        "Effect": "Allow",
+                                        "Action": [
+                                                "dynamodb:BatchGetItem",
+                                                "dynamodb:BatchWriteItem",
+                                                "dynamodb:CreateTable",
+                                                "dynamodb:DeleteItem",
+                                                "dynamodb:DescribeLimits",
+                                                "dynamodb:DescribeTable",
+                                                "dynamodb:GetItem",
+                                                "dynamodb:GetRecords",
+                                                "dynamodb:ListTables",
+                                                "dynamodb:PutItem",
+                                                "dynamodb:Query",
+                                                "dynamodb:Scan",
+                                                "dynamodb:TagResource",
+                                                "dynamodb:UpdateItem",
+                                                "dynamodb:UpdateTable"
+                                        ],
+                                        "Resource": ["*"]
+                                },
+                                {
+                                        "Sid": "SQSActions",
+                                        "Effect": "Allow",
+                                        "Action": [
+                                                "sqs:ChangeMessageVisibility",
+                                                "sqs:DeleteMessage",
+                                                "sqs:GetQueueUrl",
+                                                "sqs:ListQueues",
+                                                "sqs:ReceiveMessage",
+                                                "sqs:SendMessage"
+                                        ],
+                                        "Resource": ["*"]
+                                },
+                                {
+                                        "Sid": "SNSACtions",
+                                        "Effect": "Allow",
+                                        "Action": [
+                                                "sns:Publish"
+                                        ],
+                                        "Resource": ["*"]
+                                }
+                        ]
+        }
+      }
+    },
+    "SubscrierStateMachine": {
+      "Type": "AWS::StepFunctions::StateMachine",
+      "Properties": {
+        "DefinitionString": {
+            "Fn::Join": [
+                "\n", [
+                        "{",
+                        "    \"StartAt\": \"FetchFromSubscriberQueue\",",
+                        "    \"States\" : {",
+                        "        \"FetchFromSubscriberQueue\" : {",
+                        "            \"Type\" : \"Task\", ",
+                        {
+                                "Fn::Sub": "\"Resource\" : \"${FetchFromSubscriberQueueLambda.Arn}\","
+                        },
+                        "            \"Next\" : \"ChoiceState\"",
+                        "        },",
+                        "        \"ChoiceState\" : {",
+                        "\"Type\" : \"Choice\", ",
+                        "\"Choices\" : [",
+                        "{",
+                        "\"Variable\" : \"$.Action\", ",
+                        "\"StringEquals\" : \"Null\", ",
+                        "\"Next\" : \"Terminate\" ",
+                        "},",
+                        "{",
+                        "\"Variable\" : \"$.Action\",",
+                        "\"StringEquals\" : \"CreateVpc\",",
+                        "\"Next\" : \"CreateVpc\"",
+                        "},",
+                        "{",
+                        "\"Variable\" : \"$.Action\",",
+                        "\"StringEquals\" : \"ConfigureSubscribingVpcVpn\",",
+                        "\"Next\" : \"ConfigureSubscribingVpcVpn\"",
+                        "},",
+                        "{",
+                        "\"Variable\" : \"$.Action\",",
+                        "\"StringEquals\" : \"VpnConfigured\",",
+                        "\"Next\" : \"VpnConfigured\"",
+                        "},",
+                        "{",
+                        "\"Variable\" : \"$.Action\",",
+                        "\"StringEquals\" : \"VpnFailed\",",
+                        "\"Next\" : \"VpnFailed\"",
+                        "},",
+                        "{",
+                        "\"Variable\" : \"$.Action\",",
+                        "\"StringEquals\" : \"DeleteVpnConnection\",",
+                        "\"Next\" : \"DeleteVpnConnection\"",
+                        "}",
+                        "],",
+                        "\"Default\" : \"DefaultState\"",
+                        "},",
+                        "\"CreateVpc\": {",
+                        "\"Type\" : \"Task\",",
+                        {
+                                "Fn::Sub": "\"Resource\" : \"${CreateVpcLambda.Arn}\","
+                        },
+                        "\"Next\": \"FetchFromSubscriberQueue\"",
+                        "},", 
+                        "\"ConfigureSubscribingVpcVpn\": {",
+                        "\"Type\" : \"Task\",",
+                        {
+                                "Fn::Sub": "\"Resource\" : \"${ConfigureSubscribingVpcVpnLambda.Arn}\","
+                        },
+                        "\"Next\": \"FetchFromSubscriberQueue\"",
+                        "},",
+                        "\"VpnConfigured\": {",
+                        "\"Type\" : \"Task\",",
+                        {
+                                "Fn::Sub": "\"Resource\" : \"${VpnConfiguredLambda.Arn}\","
+                        },
+                        "\"Next\": \"FetchFromSubscriberQueue\"",
+                        "},",
+                        "\"VpnFailed\": {",
+                        "\"Type\" : \"Task\",",
+                        {
+                                "Fn::Sub": "\"Resource\" : \"${VpnFailedLambda.Arn}\","
+                        },
+                        "\"Next\": \"FetchFromSubscriberQueue\"",
+                        "},",
+                        "\"DeleteVpnConnection\": {",
+                        "\"Type\" : \"Task\",",
+                        {
+                            "Fn::Sub": "\"Resource\" : \"${DeleteVpnConnectionLambda.Arn}\","
+                        },
+                        "\"Next\": \"FetchFromSubscriberQueue\"",
+                        "},",
+                        "\"Terminate\": {",
+                        "\"Type\": \"Succeed\"",
+                        "},",
+                        "\"DefaultState\": {",
+                        "\"Type\": \"Task\",",
+                        {
+                        "Fn::Sub": "\"Resource\" : \"${DefaultStateLambda.Arn}\","
+                        },
+                        "\"End\": true",
+                        "}",
+                        "}",
+                        "}"
+                ]
+            ]
+        },
+        "RoleArn": {"Fn::GetAtt": ["StateMachineExecutionRole","Arn"]}
+      }
+    },
+    "StateMachineExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {"Fn::Join": ["-", ["StateMachineExecutionRole", { "Ref": "AWS::StackName" }]]},
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": {
+                  "Fn::Join": [
+                    ".",
+                    [
+                      "states",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      "amazonaws.com"
+                    ]
+                  ]
+                }
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Path": "/"
+      }
+    },
+    "StateMachineExecutionPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": {"Fn::Join": ["-", ["StateMachineExecutionPolicy", { "Ref": "AWS::StackName" }]]},
+        "Roles": [
+          {
+            "Ref": "StateMachineExecutionRole"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "lambda:InvokeFunction"
+              ],
+              "Resource": "*"
+            }
+          ]
+        }
+      }
+    },
+    "LaunchSubscriberVpcTemplate" : {
+        "Type" : "AWS::CloudFormation::Stack",
+        "DependsOn" : ["S3CloudTrailPolicy"],
+        "Metadata" : { "Comment" : "Provisiong VPC skeleton with subscriberVpc=YES tag" },
+        "Properties" : {
+            "Parameters": {
+                "sshKey" : {"Ref":"SshKey"},
+                "vpcCidrRange": {"Ref": "VpcCidrRange"},
+                "subnetCidrRange1": {"Ref": "SubnetCidr1"},
+                "subnetCidrRange2": {"Ref": "SubnetCidr2"},
+                "subnetCidrRange3": {"Ref": "SubnetCidr3"},
+                "subnetCidrRange4": {"Ref": "SubnetCidr4"},
+                "AvailabilityZone1": {"Ref": "az1"},
+                "AvailabilityZone2": {"Ref": "az2"}
+            },
+            "TemplateURL" : { "Fn::Join": ["/", ["https://s3.amazonaws.com", {"Ref":"LambdaFunctionsBucketName"}, "subscriberVpcCft.json"]]}
+        },
+        "Condition": "SubscriberVpc"
+    },
+    "InitializeDb": {
+        "Type": "AWS::CloudFormation::CustomResource",
+        "DependsOn": ["SubscrierStateMachine", "SubscriberAssumeRole", "EnableCloudTrail", "DynamoDbSubscriberConfig", "DynamoDbSubscriberVpcVpnTable", "DynamoDbSubscriberLocalDb"],
+        "Properties": {
+            "ServiceToken": { "Fn::GetAtt" : ["SubscriberInitializeLambda", "Arn"] },
+            "SubscriberStateMachineArn" : {"Ref":"SubscrierStateMachine"},
+            "SubscriberAssumeRoleArn": {"Fn::GetAtt": ["SubscriberAssumeRole","Arn"]},
+            "SubscriberQueueUrl": {"Ref":"SQSFifoQueue"},
+            "SubscriberSnsArn": {"Ref":"SNSTopic"},
+            "SubscriberVpcVpnTable": {"Ref":"DynamoDbSubscriberVpcVpnTable"},
+            "SubscriberConfig": {"Ref":"DynamoDbSubscriberConfig"},
+            "TransitAssumeRoleArn": {"Ref": "TransitAssumeRoleArn"},
+            "SubscriberLocalDb": {"Ref":"DynamoDbSubscriberLocalDb"},
+            "TransitSNSTopicArn": {"Ref": "TransitSNSTopicArn"}
+        }
+    },
+    "SubscriberInitializeLambda":{
+        "Type": "AWS::Lambda::Function",
+        "Properties": {
+            "FunctionName": {"Fn::Join": ["-", ["initializeDynamo", { "Ref": "AWS::StackName" }]]},
+            "Description": "Return Gateway IP",
+            "Handler": "initializeSubscriberDynamoTables.lambda_handler",
+            "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+            "Code": {
+              "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+              "S3Key": {"Ref": "LambdaZipFile"}
+            },
+            "Runtime": "python3.6",
+            "Timeout": "150"
+        }
+    }
+  },
+  "Outputs": {
+    "SubscriberStateMachineArn": {
+        "Description": "Subscriber State Machine Arn",
+        "Value": {"Ref":"SubscrierStateMachine"}
+    },
+    "SubscriberAssumeRoleArn": {
+        "Description": "Subscriber Assume Role ARN",
+        "Value": {"Fn::GetAtt": ["SubscriberAssumeRole","Arn"]}
+    },
+    "SubscriberQueueUrl": {
+        "Description": "Subscriber SQS Queue URL",
+        "Value": {"Ref":"SQSFifoQueue"}
+    },
+    "SubscriberSnsArn": {
+        "Description": "Subscriber SNS Topic Arn",
+        "Value": {"Ref":"SNSTopic"}
+    },
+    "SubscriberVpcVpnTable": {
+        "Description": "Subscriber VPC VPN DynamoDB table",
+        "Value": {"Ref":"DynamoDbSubscriberVpcVpnTable"}
+    },
+    "SubscriberLocalDb": {
+        "Description": "Subscriber Local DynamoDB table",
+        "Value": {"Ref":"DynamoDbSubscriberLocalDb"}
+    },
+    "SubscriberConfig": {
+        "Description": "Subscriber Config DynamoDB table",
+        "Value": {"Ref":"DynamoDbSubscriberConfig"}
+    }
+  }
+}

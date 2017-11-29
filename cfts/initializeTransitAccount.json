@@ -1,0 +1,1175 @@
+{
+    "AWSTemplateFormatVersion" : "2010-09-09",
+    "Description" : "Create Transit VPC",
+    "Metadata": {
+        "AWS::CloudFormation::Interface": {
+          "ParameterGroups": [
+            { "Label": { "default": "Required Parameters" }, "Parameters": [ "PaGroupTemplateUrl", "DeLicenseApiKey", "UserName", "Password", "paBootstrapBucketName", "LambdaFunctionsBucketName", "VpnConfigBucketName", "sshKey", "az1", "az2"] },
+            { "Label": { "default": "Default Parameters" }, "Parameters": [ "SubscriberAWSAccountNumber", "PaloAltoGroupCapacity", "LambdaZipFile","transitVpcCidr", "dmzAz1Cidr", "dmzAz2Cidr", "pdmzAz1Cidr", "pdmzAz2Cidr", "mgmtAz1Cidr", "mgmtAz2Cidr", "trustedSource", "NatInstanceType", "sshKey"] }
+          ]
+        }
+    },
+    "Parameters" : {
+        "PaGroupTemplateUrl": {
+            "Description" : "Palo Alto Cloudformation Template url",
+            "Type" : "String",
+            "Default": "https://s3.amazonaws.com/pa-cft-jayan-01/transit_pa_group.json"
+        },
+        "DeLicenseApiKey": {
+            "Description" : "PA license deactivation API Key",
+            "Type" : "String"
+        },
+        "UserName": {
+            "Description" : "Palo Alto Login User Name",
+            "Type" : "String"
+        },
+        "Password": {
+            "Description" : "Palo Alto Login User Password",
+            "Type" : "String"
+        },
+        "paBootstrapBucketName" : {
+            "Description" : "Existing S3 bucket which is having PA-Bootstrap configuration",
+            "Type" : "String"
+        },
+        "LambdaFunctionsBucketName": {
+          "Description": "Existing S3 bucket name which is having the Lambda funtions zip",
+          "Type": "String"
+        },
+        "VpnConfigBucketName": {
+          "Description": "Creates a S3-bucket for VPN Configuration files. NOTE: Do not use Capitals and S3 bucket names are globally unique, regardless of the AWS Region and AWS Account. So please prepend/append your aws account number to the name of bucket to avoid stack creation failure",
+          "Type": "String",
+          "Default": "palo-alto-transit-vpn-config-bucket"
+        },
+        "SubscriberAWSAccountNumber": {
+          "Description": "Subscriber AWS Account number(s) required for Assume Role, Provide a valid 12-digit AWS Account Number, Please provide comma separated account numbers if you have morethan one subscriber aws account",
+          "Type": "String"
+        },
+        "PaloAltoGroupCapacity":{
+            "Description": "The Maximum number of VPN connection supported for PA-Group",
+            "Type": "Number",
+            "Default": "4"
+        },
+        "LambdaZipFile": {
+          "Description": "Lambda code zip filename which is stored in above mentioned Required parameters LambdaFunctionsBucketName",
+          "Type": "String",
+          "Default": "lambda.zip"
+        },
+        "transitVpcCidr" : {
+            "Description" : "Give the VPC CIDR range to create Transit VPC",
+            "Type" : "String",
+            "Default": "10.100.0.0/24"
+        },
+        "NatInstanceType" : {
+            "Description" : "Instance type to use for NAT",
+            "Type" : "String",
+            "Default" : "t2.micro"
+        },
+        "sshKey" : {
+            "Description" : "SSH key to associate with PA Server",
+            "Type" : "AWS::EC2::KeyPair::KeyName"
+        },
+        "dmzAz1Cidr" : {
+            "Description" : "Give the CIDR range to create DMZ Subnet AZ1",
+            "Type" : "String",
+            "Default": "10.100.0.0/27"
+        },
+        "dmzAz2Cidr" : {
+            "Description" : "Give the CIDR range to create DMZ Subnet AZ2",
+            "Type" : "String",
+            "Default": "10.100.0.32/27"
+        },
+        "pdmzAz1Cidr" : {
+            "Description" : "Give the CIDR range to create pDMZ Subnet AZ1",
+            "Type" : "String",
+            "Default": "10.100.0.128/27"
+        },
+        "pdmzAz2Cidr" : {
+            "Description" : "Give the CIDR range to create pDMZ Subnet AZ2",
+            "Type" : "String",
+            "Default": "10.100.0.160/27"
+        },
+        "mgmtAz1Cidr" : {
+            "Description" : "Give the CIDR range to create MGMT Subnet AZ1",
+            "Type" : "String",
+            "Default": "10.100.0.64/27"
+        },
+        "mgmtAz2Cidr" : {
+            "Description" : "Give the CIDR range to create MGMT Subnet AZ2",
+            "Type" : "String",
+            "Default": "10.100.0.96/27"
+        },
+        "az1" : {
+            "Description" : "Select AvailabilityZone 1",
+            "Type" : "AWS::EC2::AvailabilityZone::Name",
+            "Default": "us-east-1a"
+        },
+        "az2" : {
+            "Description" : "Select AvailabilityZone 2",
+            "Type" : "AWS::EC2::AvailabilityZone::Name",
+            "Default": "us-east-1b"
+        },
+        "trustedSource" : {
+            "Description" : "Trusted source to allow access to PA MGMT interface",
+            "Type" : "String",
+            "Default" : "202.65.158.154/32"
+        }
+    },
+    "Mappings": {
+        "AWSNATAMI": {
+            "us-east-1": {"AMI": "ami-b419e7ce"},
+            "us-west-2": {"AMI": "ami-0b707a72"},
+            "us-east-2": {"AMI": "ami-021e3167"},
+            "us-west-1": {"AMI": "ami-004b0f60"},
+            "ca-central-1": {"AMI": "ami-12d36a76"},
+            "eu-west-1": {"AMI": "ami-076d5d61"},
+            "eu-west-2": {"AMI": "ami-0a4c5a6e"},
+            "eu-central-1": {"AMI": "ami-0469bb6b"},
+            "ap-southeast-1": {"AMI": "ami-047a3667"},
+            "ap-southeast-2": {"AMI": "ami-17809174"},
+            "ap-northeast-1": {"AMI": "ami-10dfc877"},
+            "ap-northeast-2": {"AMI": "ami-1a1bc474"},
+            "ap-south-1": {"AMI": "ami-6dc38202"},
+            "sa-east-1": {"AMI": "ami-54e59738"}
+        }
+    },
+    "Resources" : {
+        "paBootstrapBucketAccessRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                  "Version": "2012-10-17",
+                  "Statement": [ { "Effect": "Allow", "Principal": { "Service": [ "ec2.amazonaws.com" ] }, "Action": [ "sts:AssumeRole" ] } ]
+                },
+                "Path": "/",
+                "Policies": [
+                  {
+                    "PolicyName": "paBootstrapBucketAccessReadPolicy",
+                    "PolicyDocument": {
+                      "Version": "2012-10-17",
+                      "Statement": [
+                        {
+                          "Resource": [
+                            { "Fn::Join": [ "", [ "arn:aws:s3:::",{ "Ref" : "paBootstrapBucketName" } ] ] },
+                            { "Fn::Join": [ "", [ "arn:aws:s3:::",{ "Ref" : "paBootstrapBucketName" },"/*" ] ] }
+                          ],
+                          "Action": [ "s3:List*", "s3:Get*" ],
+                          "Effect": "Allow"
+                        }
+                      ]
+                    }
+                  }
+                ]
+            }
+        },
+        "paGroupInstanceProfile": {
+            "Type": "AWS::IAM::InstanceProfile",
+            "Properties": {
+            "Path": "/",
+            "Roles": [ { "Ref": "paBootstrapBucketAccessRole" } ]
+            }
+        },
+        "GetGatewayId": {
+            "Type": "AWS::CloudFormation::CustomResource",
+            "DependsOn": ["TransitStateMachine","TransitAssumeRole", "DynamoDbBgpTunnelIpPool", "DynamoDbVpcTable", "paGroupInstanceProfile", "SQSNormalFifoQueue", "VpnConfigBucket","SQSPriorityFifoQueue", "SNSTopic", "DynamoDbTransitConfig", "DynamoDbVgwAsn", "DynamoDbPaGroupInfo", "paBootstrapBucketAccessRole", "dmzAz2", "dmzAz1", "mgmtAz1", "mgmtAz2", "trustedSecurityGroup", "untrustedSecurityGroup"],
+            "Properties": {
+                "ServiceToken": { "Fn::GetAtt" : ["TransitInitializeLambda", "Arn"] },
+                "TransitVpcDmzAz1SubnetGateway": {"Ref": "dmzAz1Cidr"},
+                "TransitVpcDmzAz2SubnetGateway": {"Ref":"dmzAz2Cidr"},
+                "SubscriberAccounts": {"Ref": "SubscriberAWSAccountNumber"},
+                "PaGroupMaxVpc": {"Ref": "PaloAltoGroupCapacity"},
+                "LambdaCodeBucketName": {"Ref": "LambdaFunctionsBucketName"},
+                "SshKeyName": {"Ref": "sshKey"},
+                "DeLicenseApiKey": {"Ref": "DeLicenseApiKey"},
+                "PaGroupTemplateUrl": {"Ref": "PaGroupTemplateUrl"},
+                "UserName": {"Ref": "UserName"},
+                "Password": {"Ref": "Password"},
+                "TransitAssumeRoleName": {"Ref":"TransitAssumeRole"},
+                "TransitStateMachineArn": {"Ref":"TransitStateMachine"},
+                "TransitPriorityQueue": {"Ref":"SQSPriorityFifoQueue"},
+                "TransitAssumeRoleArn": {"Fn::GetAtt": ["TransitAssumeRole","Arn"]},
+                "TransitVpnBucketName": {"Ref":"VpnConfigBucket"},
+                "TransitNormalQueue": {"Ref":"SQSNormalFifoQueue"},
+                "TransitSnsArn": {"Ref":"SNSTopic"},
+                "TransitBgpTunnelIpPool": {"Ref":"DynamoDbBgpTunnelIpPool"},
+                "TransitConfig": {"Ref":"DynamoDbTransitConfig"},
+                "TransitVgwAsn": {"Ref":"DynamoDbVgwAsn"},
+                "TransitPaGroupInfo": {"Ref":"DynamoDbPaGroupInfo"},
+                "TransitVpcTable": {"Ref":"DynamoDbVpcTable"},
+                "PaBootstrapBucketAccessRole": { "Ref": "paBootstrapBucketAccessRole" },
+                "PaGroupInstanceProfileName": { "Ref": "paGroupInstanceProfile" },
+                "PaBootstrapBucketName": { "Ref": "paBootstrapBucketName" },
+                "TransitVpcDmzAz1SubnetId": { "Ref": "dmzAz1" },
+                "TransitVpcDmzAz2SubnetId": { "Ref": "dmzAz2" },
+                "TransitVpcMgmtAz1SubnetId": { "Ref": "mgmtAz1" },
+                "TransitVpcMgmtAz2SubnetId": { "Ref": "mgmtAz2" },
+                "TransitVpcTrustedSecurityGroupId": { "Ref": "trustedSecurityGroup" },
+                "TransitVpcUntrustedSecurityGroupId": { "Ref": "untrustedSecurityGroup" },
+                "Region": {"Ref":"AWS::Region"}
+            }
+        },
+        "TransitInitializeLambda":{
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Description": "Return Gateway IP",
+                "Handler": "initializeTransitDynamoTables.lambda_handler",
+                "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+                "Code": {
+                  "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+                  "S3Key": {"Ref": "LambdaZipFile"}
+                },
+                "Runtime": "python3.6",
+                "Timeout": "150"
+            }
+        },
+        "transitVpc" : {
+            "Type" : "AWS::EC2::VPC",
+            "Properties" : {
+                "CidrBlock" : { "Ref" : "transitVpcCidr" },
+                "Tags" : [
+                    { "Key" : "Name", "Value" : "transitVpc" }
+                ]
+            }
+        },
+        "dmzAz1" : {
+            "Type" : "AWS::EC2::Subnet",
+            "Properties" : {
+                "VpcId" : { "Ref" : "transitVpc" },
+                "CidrBlock" : { "Ref" : "dmzAz1Cidr" },
+                "AvailabilityZone" : {"Ref" : "az1"},
+                "Tags" : [
+                    { "Key" : "Name", "Value" : "transitVpcDmzAz1" }
+                ]
+            }
+        },
+        "dmzAz2" : {
+            "Type" : "AWS::EC2::Subnet",
+            "Properties" : {
+                "VpcId" : { "Ref" : "transitVpc" },
+                "CidrBlock" : { "Ref" : "dmzAz2Cidr" },
+                "AvailabilityZone" : {"Ref" : "az2"},
+                "Tags" : [
+                    { "Key" : "Name", "Value" : "transitVpcDmzAz2" }
+                ]
+            }
+        },
+        "pdmzAz1" : {
+            "Type" : "AWS::EC2::Subnet",
+            "Properties" : {
+                "VpcId" : { "Ref" : "transitVpc" },
+                "CidrBlock" : { "Ref" : "pdmzAz1Cidr" },
+                "AvailabilityZone" : {"Ref" : "az1"},
+                "Tags" : [
+                    { "Key" : "Name", "Value" : "transitVpcPdmzAz1" }
+                ]
+            }
+        },
+        "pdmzAz2" : {
+            "Type" : "AWS::EC2::Subnet",
+            "Properties" : {
+                "VpcId" : { "Ref" : "transitVpc" },
+                "CidrBlock" : { "Ref" : "pdmzAz2Cidr" },
+                "AvailabilityZone" : {"Ref" : "az2"},
+                "Tags" : [
+                    { "Key" : "Name", "Value" : "transitVpcPdmzAz2" }
+                ]
+            }
+        },
+        "mgmtAz1" : {
+            "Type" : "AWS::EC2::Subnet",
+            "Properties" : {
+                "VpcId" : { "Ref" : "transitVpc" },
+                "CidrBlock" : { "Ref" : "mgmtAz1Cidr" },
+                "AvailabilityZone" : {"Ref" : "az1"},
+                "Tags" : [
+                    { "Key" : "Name", "Value" : "transitVpcMgmtAz1" }
+                ]
+            }
+        },
+        "mgmtAz2" : {
+            "Type" : "AWS::EC2::Subnet",
+            "Properties" : {
+                "VpcId" : { "Ref" : "transitVpc" },
+                "CidrBlock" : { "Ref" : "mgmtAz2Cidr" },
+                "AvailabilityZone" : {"Ref" : "az2"},
+                "Tags" : [
+                    { "Key" : "Name", "Value" : "transitVpcMgmtAz2" }
+                ]
+            }
+        },
+        "InternetGateway" : {
+            "Type" : "AWS::EC2::InternetGateway",
+            "Properties" : {
+                "Tags" : [
+                    { "Key" : "Name", "Value" : "transitVpcIgw" }
+                ]
+            }
+        },
+        "AttachGateway" : {
+            "Type" : "AWS::EC2::VPCGatewayAttachment",
+            "Properties" : {
+                "VpcId" : { "Ref" : "transitVpc" },
+                "InternetGatewayId" : { "Ref" : "InternetGateway" }
+            }
+        },
+        "PubRouteTable" : {
+            "Type" : "AWS::EC2::RouteTable",
+            "Properties" : {
+                "VpcId" : { "Ref" : "transitVpc" },
+                "Tags" : [
+                    { "Key" : "Name", "Value" : "PublicRouteTable" }
+                ]
+            }
+        },
+        "PubRoute" : {
+            "DependsOn": ["InternetGateway"],
+            "Type" : "AWS::EC2::Route",
+            "Properties" : {
+                "RouteTableId" : { "Ref" : "PubRouteTable" },
+                "DestinationCidrBlock" : "0.0.0.0/0",
+                "GatewayId" : { "Ref" : "InternetGateway" }
+            }
+        },
+        "natRouteTable" : {
+            "Type" : "AWS::EC2::RouteTable",
+            "Properties" : {
+                "VpcId" : { "Ref" : "transitVpc" },
+                "Tags" : [
+                    { "Key" : "Name", "Value" : "NatRouteTable" }
+                ]
+            }
+        },
+        "natRoute" : {
+            "DependsOn": ["InternetGateway"],
+            "Type" : "AWS::EC2::Route",
+            "Properties" : {
+                "RouteTableId" : { "Ref" : "natRouteTable" },
+                "DestinationCidrBlock" : "0.0.0.0/0",
+                "InstanceId" : { "Ref" : "natInstance" }
+            }
+        },
+        "dmzAz1RtAssociation" : {
+            "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties" : {
+                "SubnetId" : { "Ref" : "dmzAz1" },
+                "RouteTableId" : { "Ref" : "PubRouteTable" }
+            }
+        },
+        "dmzAz2RtAssociation" : {
+            "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties" : {
+                "SubnetId" : { "Ref" : "dmzAz2" },
+                "RouteTableId" : { "Ref" : "PubRouteTable" }
+            }
+        },
+        "mgmtAz1RtAssociation" : {
+            "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties" : {
+                "SubnetId" : { "Ref" : "mgmtAz1" },
+                "RouteTableId" : { "Ref" : "natRouteTable" }
+            }
+        },
+        "mgmtAz2RtAssociation" : {
+            "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties" : {
+                "SubnetId" : { "Ref" : "mgmtAz2" },
+                "RouteTableId" : { "Ref" : "natRouteTable" }
+            }
+        },
+        "trustedSecurityGroup" : {
+           "Type" : "AWS::EC2::SecurityGroup",
+           "Properties" : {
+              "GroupDescription" : "Allow SSH/API access from trusted source",
+              "VpcId" : { "Ref" : "transitVpc" },
+                    "Tags" : [
+                        { "Key" : "Name", "Value" : "trustedSecurityGroup" }
+                    ],
+              "SecurityGroupIngress" : [
+                        { "IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : { "Ref" : "transitVpcCidr"} },
+                        { "IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "CidrIp" : { "Ref" : "transitVpcCidr"} },
+                        { "IpProtocol" : "tcp", "FromPort" : "443", "ToPort" : "443", "CidrIp" : { "Ref" : "transitVpcCidr"} },
+                        { "IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : { "Ref" : "trustedSource"} },
+                        { "IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "CidrIp" : { "Ref" : "trustedSource"} },
+                        { "IpProtocol" : "tcp", "FromPort" : "443", "ToPort" : "443", "CidrIp" : { "Ref" : "trustedSource"} }
+                     ]
+           }
+        },
+        "untrustedSecurityGroup" : {
+           "Type" : "AWS::EC2::SecurityGroup",
+           "Properties" : {
+              "GroupDescription" : "Security group for untrusted sources",
+              "VpcId" : { "Ref" : "transitVpc" },
+                    "Tags" : [
+                        { "Key" : "Name", "Value" : "untrustedSecurityGroup" }
+                    ],
+              "SecurityGroupIngress" : [
+                        { "IpProtocol" : "-1", "FromPort" : "0", "ToPort" : "0", "CidrIp" : "0.0.0.0/0" } 
+                ]
+           }
+        },
+        "natSecurityGroup" : {
+           "Type" : "AWS::EC2::SecurityGroup",
+           "Properties" : {
+              "GroupDescription" : "Security group for untrusted sources",
+              "VpcId" : { "Ref" : "transitVpc" },
+                    "Tags" : [
+                        { "Key" : "Name", "Value" : "natSecurityGroup" }
+                    ],
+                    "SecurityGroupIngress" : [
+                        { "IpProtocol" : "-1", "CidrIp" : { "Ref" : "transitVpcCidr"} }
+                     ]
+           }
+        },
+        "natInstance" : {
+            "Type" : "AWS::EC2::Instance",
+            "Properties" : {
+            "ImageId" : { "Fn::FindInMap" : [ "AWSNATAMI", { "Ref" : "AWS::Region" }, "AMI"]},
+            "InstanceType" : { "Ref" : "NatInstanceType"},
+            "KeyName" : { "Ref" : "sshKey" },
+                    "SourceDestCheck" : "false",
+            "NetworkInterfaces": [ { "AssociatePublicIpAddress": "true", "DeviceIndex": "0", "SubnetId": { "Ref" : "dmzAz1" }, "GroupSet": [ { "Ref" : "natSecurityGroup" } ] } ],
+                    "Tags" : [ { "Key" : "Name", "Value" : "TransitVpcNatInstance" } ]
+            }
+        },
+        "TransitAssumeRole":{
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName": {"Fn::Join": ["-", [ "TransitAssumeRole", { "Ref": "AWS::StackName" }]]},
+                "AssumeRolePolicyDocument": {
+                   "Version" : "2012-10-17",
+                   "Statement": [ 
+                   {
+                      "Effect": "Allow",
+                      "Principal": {
+                         "AWS": { "Fn::Join": [":", ["arn:aws:iam:", {"Ref": "AWS::AccountId"}, "root"]]}
+                      },
+                      "Action": [ "sts:AssumeRole" ]
+                   }]
+                },
+                "Path": "/",
+                "Policies": [ {
+                   "PolicyName": {"Fn::Join": ["-", ["TransitAssumeRolePolicy", { "Ref": "AWS::StackName" }]]},
+                   "PolicyDocument": {
+                    "Version" : "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "S3Actions",
+                            "Effect": "Allow",
+                            "Action": ["s3:GetBucketAcl","s3:GetBucketLocation","s3:GetObject","s3:GetObjectAcl","s3:ListBucket","s3:PutObject","s3:PutObjectAcl","s3:PutObjectTagging" ],
+                            "Resource": ["*"]
+                        },
+                        {
+                            "Sid": "SNSACtions",
+                            "Effect": "Allow",
+                            "Action": ["sns:Publish"],
+                            "Resource": ["*"]
+                        }
+                    ]
+                   }
+                }]
+            }
+        },
+        "VpnConfigBucket": {
+            "Type" : "AWS::S3::Bucket",
+            "Properties" : {
+                "BucketName" : {"Ref":"VpnConfigBucketName"}
+            }
+        },
+        "SQSPriorityFifoQueue": {
+            "Type" : "AWS::SQS::Queue",
+            "Properties" : {
+                "FifoQueue" : true,
+                "ContentBasedDeduplication" : true,
+                "QueueName": {"Fn::Join": ["-", [{ "Ref": "AWS::StackName" }, "PriorityQueue.fifo"]]},
+                "ReceiveMessageWaitTimeSeconds": 10,
+                "VisibilityTimeout": 30
+            }
+        },
+        "SQSNormalFifoQueue": {
+            "Type" : "AWS::SQS::Queue",
+            "Properties" : {
+                "FifoQueue" : true,
+                "ContentBasedDeduplication" : true,
+                "QueueName": {"Fn::Join": ["-", [{ "Ref": "AWS::StackName" }, "NormalQueue.fifo"]]},
+                "ReceiveMessageWaitTimeSeconds": 10,
+                "VisibilityTimeout": 30
+            }
+        },
+        "SNSTopic": {
+            "Type" : "AWS::SNS::Topic",
+            "Properties" : {
+                "DisplayName" : "transitSnsTopic",
+                "TopicName" : {"Fn::Join": ["-", ["transitSns", { "Ref": "AWS::StackName" }]]}
+            }
+        },
+        "SNSSubscription": {
+            "Type" : "AWS::SNS::Subscription",
+            "DependsOn": "TransitDeciderLambda",
+            "Properties" : {
+                "Endpoint" : {"Fn::GetAtt": ["TransitDeciderLambda","Arn"]},
+                "Protocol" : "lambda",
+                "TopicArn" : {"Ref":"SNSTopic"}
+            }
+        },
+        "LambdaPermission": {
+            "Type" : "AWS::Lambda::Permission",
+            "Properties" : {
+                "Action" : "lambda:InvokeFunction",
+                "FunctionName" : {"Fn::GetAtt": ["TransitDeciderLambda","Arn"]},
+                "Principal" : "sns.amazonaws.com"
+            }
+        },
+        "TransitDeciderLambda": {
+            "Type": "AWS::Lambda::Function",
+            "DependsOn": ["LambdaExecutionRole"],
+            "Properties": {
+                "FunctionName": {"Fn::Join": ["-", ["transitDeciderLambda", { "Ref": "AWS::StackName" }]]},
+                "Description": "Transit Decider Lambda",
+                "Handler": "transitDeciderLambda.lambda_handler",
+                "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+                "Code": {
+                  "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+                  "S3Key": {"Ref": "LambdaZipFile"}
+                },
+                "Environment": {
+                    "Variables": {
+                        "transitConfigTable":{"Ref":"DynamoDbTransitConfig"},
+                        "Region": {"Ref": "AWS::Region"}
+                    }
+                },
+                "Runtime": "python3.6",
+                "Timeout": "300"
+            }
+        },
+        "TransitTaskHandler": {
+            "Type": "AWS::Lambda::Function",
+            "DependsOn": ["LambdaExecutionRole"],
+            "Properties": {
+                "FunctionName": {"Fn::Join": ["-", ["transitTaskHandler", { "Ref": "AWS::StackName" }]]},
+                "Description": "Transit Task Handler",
+                "Handler": "transitTaskHandlerLambda.lambda_handler",
+                "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+                "Code": {
+                  "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+                  "S3Key": {"Ref": "LambdaZipFile"}
+                }, 
+                "Environment": {
+                    "Variables":{
+                        "transitConfigTable":{"Ref":"DynamoDbTransitConfig"}
+                    }
+                },
+                "Runtime": "python3.6",
+                "Timeout": "300"
+            }
+        },
+        "FetchVpnServerDetails": {
+            "Type": "AWS::Lambda::Function",
+            "DependsOn": ["LambdaExecutionRole"],
+            "Properties": {
+                "FunctionName": {"Fn::Join": ["-", ["fetchVpnServerDetails", { "Ref": "AWS::StackName" }]]},
+                "Description": "Transit Fetch VpnServerDetails",
+                "Handler": "fetchVpnServerDetailsLambda.lambda_handler",
+                "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+                "Code": {
+                  "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+                  "S3Key": {"Ref": "LambdaZipFile"}
+                },
+                "Environment": {
+                    "Variables": {
+                        "paloAltoGroupCapacity":{"Ref":"PaloAltoGroupCapacity"},
+                        "transitConfigTable":{"Ref":"DynamoDbTransitConfig"},
+                        "Region": {"Ref": "AWS::Region"}
+                    }
+                },
+                "Runtime": "python3.6",
+                "Timeout": "300"
+            }
+        },
+        "CreateNewPaGroup": {
+            "Type": "AWS::Lambda::Function",
+            "DependsOn": ["LambdaExecutionRole"],
+            "Properties": {
+                "FunctionName": {"Fn::Join": ["-", ["createNewPaGroup", { "Ref": "AWS::StackName" }]]},
+                "Description": "Launch CFT stack to Create New PaGroup",
+                "Handler": "createNewPaGroupLambda.lambda_handler",
+                "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+                "Code": {
+                  "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+                  "S3Key": {"Ref": "LambdaZipFile"}
+                },
+                "Environment": {
+                    "Variables": {
+                        "transitConfigTable":{"Ref":"DynamoDbTransitConfig"},
+                        "Region": {"Ref": "AWS::Region"}
+                    }
+                },
+                "Runtime": "python3.6",
+                "Timeout": "300"
+            }
+        },
+        "CheckStackStatus": {
+            "Type": "AWS::Lambda::Function",
+            "DependsOn": ["LambdaExecutionRole"],
+            "Properties": {
+                "FunctionName": {"Fn::Join": ["-", ["checkStackStatus", { "Ref": "AWS::StackName" }]]},
+                "Description": "Check Stack Status",
+                "Handler": "checkStackStatusLambda.lambda_handler",
+                "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+                "Code": {
+                  "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+                  "S3Key": {"Ref": "LambdaZipFile"}
+                },
+                "Environment": {
+                    "Variables": {
+                        "transitConfigTable":{"Ref":"DynamoDbTransitConfig"},
+                        "Region": {"Ref": "AWS::Region"}
+                    }
+                },
+                "Runtime": "python3.6",
+                "Timeout": "300",
+                "VpcConfig": {
+                    "SecurityGroupIds" : [ {"Ref":"trustedSecurityGroup"} ],
+                    "SubnetIds" : [ {"Ref":"mgmtAz1"}, {"Ref":"mgmtAz2"} ]
+                }
+            }
+        },
+        "ConfigureTransitVpn": {
+            "Type": "AWS::Lambda::Function",
+            "DependsOn": ["LambdaExecutionRole"],
+            "Properties": {
+                "FunctionName": {"Fn::Join": ["-", ["configureTransitVpn", { "Ref": "AWS::StackName" }]]},
+                "Description": "Transit ConfigureTransitVpn",
+                "Handler": "configureTransitVpnLambda.lambda_handler",
+                "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+                "Code": {
+                  "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+                  "S3Key": {"Ref": "LambdaZipFile"}
+                },
+                "Environment": {
+                    "Variables": {
+                        "transitConfigTable":{"Ref":"DynamoDbTransitConfig"},
+                        "Region": {"Ref": "AWS::Region"}
+                    }
+                },
+                "Runtime": "python3.6",
+                "Timeout": "300",
+                "VpcConfig": {
+                    "SecurityGroupIds" : [ {"Ref":"trustedSecurityGroup"} ],
+                    "SubnetIds" : [ {"Ref":"mgmtAz1"}, {"Ref":"mgmtAz2"} ]
+                }
+            }
+        },
+        "SubscriberVpnConfigurationFailed": {
+            "Type": "AWS::Lambda::Function",
+            "DependsOn": ["LambdaExecutionRole"],
+            "Properties": {
+                "FunctionName": {"Fn::Join": ["-", ["subscriberVpnConfigurationFailed", { "Ref": "AWS::StackName" }]]},
+                "Description": "Transit Subscriber Vpn Configuration Failed",
+                "Handler": "subscriberVpnConfigurationFailedLambda.lambda_handler",
+                "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+                "Code": {
+                  "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+                  "S3Key": {"Ref": "LambdaZipFile"}
+                },
+                "Environment": {
+                    "Variables": {
+                        "transitConfigTable":{"Ref":"DynamoDbTransitConfig"},
+                        "Region": {"Ref": "AWS::Region"}
+                    }
+                },
+                "Runtime": "python3.6",
+                "Timeout": "300"
+            }
+        },
+        "InitializeRebalanceLambda": {
+            "Type": "AWS::Lambda::Function",
+            "DependsOn": ["LambdaExecutionRole"],
+            "Properties": {
+                "FunctionName": {"Fn::Join": ["-", ["initializeRebalanceLambda", { "Ref": "AWS::StackName" }]]},
+                "Description": "Initializes Rebalance Operation",
+                "Handler": "initializeRebalanceLambda.lambda_handler",
+                "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+                "Code": {
+                  "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+                  "S3Key": {"Ref": "LambdaZipFile"}
+                },
+                "Environment": {
+                    "Variables": {
+                        "transitConfigTable":{"Ref":"DynamoDbTransitConfig"},
+                        "Region": {"Ref": "AWS::Region"}
+                    }
+                },
+                "Runtime": "python3.6",
+                "Timeout": "300"
+            }
+        },
+        "RebalancePaGroupsLambda": {
+            "Type": "AWS::Lambda::Function",
+            "DependsOn": ["LambdaExecutionRole"],
+            "Properties": {
+                "FunctionName": {"Fn::Join": ["-", ["rebalancePaGroupsLambda", { "Ref": "AWS::StackName" }]]},
+                "Description": "Get the Rebalance PaGroups",
+                "Handler": "rebalancePaGroupsLambda.lambda_handler",
+                "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+                "Code": {
+                  "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+                  "S3Key": {"Ref": "LambdaZipFile"}
+                },
+                "Environment": {
+                    "Variables": {
+                        "transitConfigTable":{"Ref":"DynamoDbTransitConfig"},
+                        "Region": {"Ref": "AWS::Region"}
+                    }
+                },
+                "Runtime": "python3.6",
+                "Timeout": "300",
+                "VpcConfig": {
+                    "SecurityGroupIds" : [ {"Ref":"trustedSecurityGroup"} ],
+                    "SubnetIds" : [ {"Ref":"mgmtAz1"}, {"Ref":"mgmtAz2"} ]
+                }
+            }
+        },
+        "DeleteTransitVpnConfiguration": {
+            "Type": "AWS::Lambda::Function",
+            "DependsOn": ["LambdaExecutionRole"],
+            "Properties": {
+                "FunctionName": {"Fn::Join": ["-", ["deleteTransitVpnConfiguration", { "Ref": "AWS::StackName" }]]},
+                "Description": "Delete Transit Vpn Configuration",
+                "Handler": "deleteTransitVpnConfigurationLambda.lambda_handler",
+                "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+                "Code": {
+                  "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
+                  "S3Key": {"Ref": "LambdaZipFile"}
+                },
+                "Environment": {
+                    "Variables": {
+                        "transitConfigTable":{"Ref":"DynamoDbTransitConfig"},
+                        "Region": {"Ref": "AWS::Region"}
+                    }
+                },
+                "Runtime": "python3.6",
+                "Timeout": "300",
+                "VpcConfig": {
+                    "SecurityGroupIds" : [ {"Ref":"trustedSecurityGroup"} ],
+                    "SubnetIds" : [ {"Ref":"mgmtAz1"}, {"Ref":"mgmtAz2"} ]
+                }
+            }
+        },
+        "DefaultStateLambda": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "FunctionName": {"Fn::Join": ["-", ["DefaultStateLambda", { "Ref": "AWS::StackName" }]]},
+                "Description": "State Machine choice Type default state Lambda",
+                "Handler": "index.handler",
+                "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
+                "Code": {
+                    "ZipFile": {"Fn::Join": ["\n", [
+                           "def handler(event,context):",
+                           "    print(event) "
+                        ]]
+                    }
+                },
+                "Runtime": "python3.6",
+                "Timeout": "300"
+            }
+        },
+        "DynamoDbTransitConfig": {
+            "Type" : "AWS::DynamoDB::Table",
+            "Properties" : {
+                "AttributeDefinitions" : [{"AttributeName" : "Property","AttributeType" : "S"}],
+                "KeySchema" : [{"AttributeName" : "Property","KeyType" : "HASH"}],
+                "ProvisionedThroughput" : {
+                    "ReadCapacityUnits" : "5",
+                    "WriteCapacityUnits" : "5"
+                },
+                "TableName" : {"Fn::Join": ["-", ["TransitConfig", { "Ref": "AWS::StackName" }]]}
+            }
+        },
+        "DynamoDbBgpTunnelIpPool": {
+            "Type" : "AWS::DynamoDB::Table",
+            "Properties" : {
+                "AttributeDefinitions" : [{"AttributeName" : "IpSegment","AttributeType" : "S"}],
+                "KeySchema" : [{"AttributeName" : "IpSegment", "KeyType" : "HASH"}],
+                "ProvisionedThroughput" : {
+                    "ReadCapacityUnits" : "5",
+                    "WriteCapacityUnits" : "5"
+                },
+                "TableName" : {"Fn::Join": ["-", ["BgpTunnelIpPool", { "Ref": "AWS::StackName" }]]}
+            }
+        },
+        "DynamoDbVgwAsn": {
+            "Type" : "AWS::DynamoDB::Table",
+            "Properties" : {
+                "AttributeDefinitions" : [{"AttributeName" : "VgwAsn","AttributeType" : "S"}],
+                "KeySchema" : [{"AttributeName" : "VgwAsn", "KeyType" : "HASH"}],
+                "ProvisionedThroughput" : {
+                        "ReadCapacityUnits" : "5",
+                        "WriteCapacityUnits" : "5"
+                },
+                "TableName" : {"Fn::Join": ["-", ["VgwAsn", { "Ref": "AWS::StackName" }]]}
+            }
+        },
+        "DynamoDbVpcTable": {
+            "Type" : "AWS::DynamoDB::Table",
+            "Properties" : {
+                "AttributeDefinitions" : [{"AttributeName" : "VpcId","AttributeType" : "S"}],
+                "KeySchema" : [{"AttributeName" : "VpcId", "KeyType" : "HASH"}],
+                "ProvisionedThroughput" : {
+                        "ReadCapacityUnits" : "5",
+                        "WriteCapacityUnits" : "5"
+                },
+                "TableName" : {"Fn::Join": ["-", ["VpcTable", { "Ref": "AWS::StackName" }]]}
+            }
+        },
+        "DynamoDbPaGroupInfo": {
+            "Type" : "AWS::DynamoDB::Table",
+            "Properties" : {
+                "AttributeDefinitions" : [{"AttributeName" : "PaGroupName","AttributeType" : "S"}],
+                "KeySchema" : [{"AttributeName" : "PaGroupName", "KeyType" : "HASH"}],
+                "ProvisionedThroughput" : {
+                    "ReadCapacityUnits" : "5",
+                    "WriteCapacityUnits" : "5"
+                },
+                "TableName" : {"Fn::Join": ["-", ["PaGroupInfo", { "Ref": "AWS::StackName" }]]}
+            }
+        },
+        "LambdaExecutionRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName": {"Fn::Join": ["-", ["TransitLambdaExecutionRole", { "Ref": "AWS::StackName" }]]},
+                "AssumeRolePolicyDocument": {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                    {
+                      "Effect": "Allow",
+                      "Principal": {"Service": ["lambda.amazonaws.com"]},
+                      "Action": ["sts:AssumeRole"]
+                    }
+                  ]
+                },
+                "Path": "/"
+            }
+        },
+        "LambdaExecutionPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": {"Fn::Join": ["-", ["TransitLambdaExecutionPolicy", { "Ref": "AWS::StackName" }]]},
+                "Roles": [{"Ref": "LambdaExecutionRole"}],
+                "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "STSAccumRole",
+                            "Effect": "Allow",
+                            "Action": ["sts:AssumeRole"],
+                            "Resource": ["*"]
+                        },
+                        {
+                            "Sid": "InvokeLambda",
+                            "Effect": "Allow",
+                            "Action": ["lambda:Invoke","lambda:InvokeFunction"],
+                            "Resource": ["*"]
+                        },
+                        {
+                            "Action": ["iam:UpdateAssumeRolePolicy","iam:GetRole","iam:PassRole"],
+                            "Resource": ["*" ],
+                            "Effect": "Allow",
+                            "Sid": "Stmt1510241210000"
+                        },
+                        {
+                             "Action": ["cloudformation:*"],
+                             "Resource": ["*"],
+                             "Effect": "Allow",
+                             "Sid": "Stmt1510241313000"
+                        },
+                        {
+                             "Action": ["ec2:*"],
+                             "Resource": ["*"],
+                             "Effect": "Allow",
+                             "Sid": "EC2FullAccess"
+                        },
+                        {
+                            "Sid": "StateMachineActions",
+                            "Effect": "Allow",
+                            "Action": ["states:ListExecutions","states:StartExecution"],
+                            "Resource": ["*"]
+                        },
+                        {
+                            "Sid": "Logs",
+                            "Effect": "Allow",
+                            "Action": ["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents"],
+                            "Resource": ["*"]
+                        },
+                        {
+                            "Sid": "S3Actions",
+                            "Effect": "Allow",
+                            "Action": ["s3:GetBucketAcl","s3:GetBucketLocation","s3:GetObject","s3:GetObjectAcl","s3:ListBucket","s3:PutObject","s3:PutObjectAcl","s3:PutObjectTagging"],
+                            "Resource": ["*"]
+                        },
+                        {
+                            "Sid": "DynamoDbActions",
+                            "Effect": "Allow",
+                            "Action": ["dynamodb:CreateTable","dynamodb:DeleteItem","dynamodb:DescribeTable","dynamodb:GetItem","dynamodb:GetRecords","dynamodb:ListTables","dynamodb:PutItem","dynamodb:Query","dynamodb:Scan","dynamodb:TagResource","dynamodb:UpdateItem","dynamodb:UpdateTable"],
+                            "Resource": ["*"]
+                        },
+                        {
+                            "Sid": "SQSActions",
+                            "Effect": "Allow",
+                            "Action": ["sqs:ChangeMessageVisibility","sqs:DeleteMessage","sqs:GetQueueUrl","sqs:ListQueues","sqs:ReceiveMessage","sqs:SendMessage"],
+                            "Resource": ["*"]
+                        },
+                        {
+                            "Sid": "SNSACtions",
+                            "Effect": "Allow",
+                            "Action": ["sns:Publish"],
+                            "Resource": ["*"]
+                        }
+                    ]
+                }
+            }
+        },
+        "TransitStateMachine": {
+            "Type": "AWS::StepFunctions::StateMachine",
+            "Properties": {
+            "DefinitionString": {
+                "Fn::Join": [
+                    "\n", [
+                        "{",
+                        "\"Comment\": \"Transit State Machine\",",
+                        "\"StartAt\": \"TransitTaskHandler\",",
+                        "\"States\": {",
+                        "\"TransitTaskHandler\": {",
+                        "\"Type\": \"Task\",",
+                        {
+                            "Fn::Sub": "\"Resource\" : \"${TransitTaskHandler.Arn}\","
+                        },
+                        "\"Next\": \"TaskChoiceState\"",
+                        "},",
+                        "\"TaskChoiceState\": {",
+                        "\"Type\" : \"Choice\",",
+                        "\"Choices\": [",
+                        "{",
+                        "\"Variable\": \"$.Action\",",
+                        "\"StringEquals\": \"FetchVpnServerDetails\",",
+                        "\"Next\": \"FetchVpnServerDetails\"",
+                        "},",
+                        "{",
+                        "\"Variable\": \"$.Action\",",
+                        "\"StringEquals\": \"SubscriberVpnConfigurationFailed\",",
+                        "\"Next\": \"SubscriberVpnConfigurationFailed\"",
+                        "},",
+                        "{",
+                        "\"Variable\": \"$.Action\",",
+                        "\"StringEquals\": \"ConfigureTransitVpn\",",
+                        "\"Next\": \"ConfigureTransitVpn\"",
+                        "},",
+                        "{",
+                        "\"Variable\": \"$.Action\",",
+                        "\"StringEquals\": \"RebalancePaGroups\",",
+                        "\"Next\": \"RebalancePaGroups\"",
+                        "},",
+                        "{",
+                        "\"Variable\": \"$.Action\",",
+                        "\"StringEquals\": \"DeleteTransitVpnConfiguration\",",
+                        "\"Next\": \"DeleteTransitVpnConfiguration\"",
+                        "}",
+                        "],",
+                        "\"Default\": \"DefaultState\"",
+                        "},",
+                        "\"FetchVpnServerDetails\": {",
+                        "\"Type\" : \"Task\",",
+                        {
+                            "Fn::Sub": "\"Resource\" : \"${FetchVpnServerDetails.Arn}\","
+                        },
+                        "\"Next\": \"FetchVpnChoiseState\"",
+                        "},",
+                        "\"FetchVpnChoiseState\": {",
+                        "\"Type\" : \"Choice\",",
+                        "\"Choices\": [",
+                        "{",
+                        "\"Variable\": \"$.Action\",",
+                        "\"StringEquals\": \"CreateNewPaGroup\",",
+                        "\"Next\": \"CreateNewPaGroup\"",
+                        "},",
+                        "{",
+                        "\"Variable\": \"$.Action\",",
+                        "\"StringEquals\": \"TransitTaskHandler\",",
+                        "\"Next\": \"TransitTaskHandler\"",
+                        "}",
+                        "],",
+                        "\"Default\": \"DefaultState\"",
+                        "},",
+                        "\"CreateNewPaGroup\": {",
+                        "\"Type\" : \"Task\",",
+                        {
+                            "Fn::Sub": "\"Resource\" : \"${CreateNewPaGroup.Arn}\","
+                        },
+                        "\"Next\": \"CheckStackStatus\"",
+                        "},",
+                        "\"CheckStackStatus\": {",
+                        "\"Type\" : \"Task\",",
+                        {
+                            "Fn::Sub": "\"Resource\" : \"${CheckStackStatus.Arn}\","
+                        },
+                        "\"Next\": \"CheckStatusChoiceState\"",
+                        "},",
+                        "\"CheckStatusChoiceState\": {",
+                        "\"Type\" : \"Choice\",",
+                        "\"Choices\": [",
+                        "{",
+                        "\"Variable\": \"$.Action\",",
+                        "\"StringEquals\": \"Success\",",
+                        "\"Next\": \"TransitTaskHandler\"",
+                        "},",
+                        "{",
+                        "\"Variable\": \"$.Action\",",
+                        "\"StringEquals\": \"Wait\",",
+                        "\"Next\": \"Wait\"",
+                        "}",
+                        "],",
+                        "\"Default\": \"DefaultState\"",
+                        "},",
+                        "\"Wait\": {",
+                        "\"Type\" : \"Wait\",",
+                        "\"Seconds\": 60,",
+                        "\"Next\": \"CheckStackStatus\"",
+                        "},",
+                        "\"ConfigureTransitVpn\": {",
+                        "\"Type\" : \"Task\",",
+                        {
+                            "Fn::Sub": "\"Resource\" : \"${ConfigureTransitVpn.Arn}\","
+                        },
+                        "\"Next\": \"TransitTaskHandler\"",
+                        "},",
+                        "\"SubscriberVpnConfigurationFailed\": {",
+                        "\"Type\" : \"Task\",",
+                        {
+                            "Fn::Sub": "\"Resource\" : \"${SubscriberVpnConfigurationFailed.Arn}\","
+                        },
+                        "\"Next\": \"TransitTaskHandler\"",
+                        "},",
+                        "\"RebalancePaGroups\": {",
+                        "\"Type\" : \"Task\",",
+                        {
+                            "Fn::Sub": "\"Resource\" : \"${RebalancePaGroupsLambda.Arn}\","
+                        },
+                        "\"End\": true",
+                        "},",
+                        "\"DeleteTransitVpnConfiguration\": {",
+                        "\"Type\" : \"Task\",",
+                        {
+                            "Fn::Sub": "\"Resource\" : \"${DeleteTransitVpnConfiguration.Arn}\","
+                        },
+                        "\"Next\": \"TransitTaskHandler\"",
+                        "},",
+                        "\"DefaultState\": {",
+                        "\"Type\": \"Task\",",
+                        {
+                            "Fn::Sub": "\"Resource\" : \"${DefaultStateLambda.Arn}\","
+                        },
+                        "\"End\": true",
+                        "}",
+                        "}",
+                        "}"
+                    ]
+                ]
+            },
+            "RoleArn": {"Fn::GetAtt": ["StateMachineExecutionRole","Arn"]}
+            }
+        },
+        "StateMachineExecutionRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName": {"Fn::Join": ["-", ["StateMachineExecutionRole", { "Ref": "AWS::StackName" }]]},
+                "AssumeRolePolicyDocument": {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                    {
+                      "Effect": "Allow",
+                      "Principal": {"Service": {"Fn::Join": [".",["states", {"Ref": "AWS::Region"},"amazonaws.com"]]}},
+                      "Action": "sts:AssumeRole"
+                    }
+                  ]
+                },
+                "Path": "/"
+            }
+        },
+        "StateMachineExecutionPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": {"Fn::Join": ["-", ["StateMachineExecutionPolicy", { "Ref": "AWS::StackName" }]]},
+                "Roles": [{"Ref": "StateMachineExecutionRole"}],
+                "PolicyDocument": {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                    {
+                      "Effect": "Allow",
+                      "Action": ["lambda:InvokeFunction"],
+                      "Resource": "*"
+                    }
+                  ]
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "PaBootstrapBucketAccessRole": {
+            "Description": "IAM role to allow access to transit VPC S3 bucket",
+            "Value": { "Ref": "paBootstrapBucketAccessRole" }
+        },
+        "PaGroupInstanceProfileName": {
+            "Description": "Instance profile for PA-Group",
+            "Value": { "Ref": "paGroupInstanceProfile" }
+        },
+        "PaBootstrapBucketName": {
+            "Description": "IAM role to allow access to transit VPC S3 bucket",
+            "Value": { "Ref": "paBootstrapBucketName" }
+        },
+        "transitVpc": {
+            "Description": "Transit VPC ID",
+            "Value": { "Ref": "transitVpc" }
+        },
+        "TransitVpcDmzAz1SubnetId": {
+            "Description": "DMZ AZ1 Subnet ID",
+            "Value": { "Ref": "dmzAz1" }
+        },
+        "TransitVpcDmzAz1SubnetId": {
+            "Description": "DMZ AZ2 Subnet ID",
+            "Value": { "Ref": "dmzAz2" }
+        },
+        "TransitVpcMgmtAz1SubnetId": {
+            "Description": "MGMT AZ1 Subnet ID",
+            "Value": { "Ref": "mgmtAz1" }
+        },
+        "TransitVpcMgmtAz2SubnetId": {
+            "Description": "MGMT AZ2 Subnet ID",
+            "Value": { "Ref": "mgmtAz2" }
+        },
+        "TransitVpcTrustedSecurityGroupId": {
+            "Description": "Trusted security group ID",
+            "Value": { "Ref": "trustedSecurityGroup" }
+        },
+        "TransitVpcUntrustedSecurityGroupId": {
+            "Description": "Untrusted security group ID",
+            "Value": { "Ref": "untrustedSecurityGroup" }
+        },
+        "SshKeyName": {
+            "Description": "SSH Key to connect to servers",
+            "Value": { "Ref": "sshKey" }
+        },
+        "TransitVpcDmzAz1SubnetGateway" : {
+            "Description" : "GatewayIP1",
+            "Value" : { "Fn::GetAtt": [ "GetGatewayId", "TransitVpcDmzAz1SubnetGateway" ] }
+        },
+        "TransitVpcDmzAz2SubnetGateway" : {
+            "Description" : "GatewayIP2",
+            "Value" : { "Fn::GetAtt": [ "GetGatewayId", "TransitVpcDmzAz2SubnetGateway" ] }
+        },
+        "TransitAssumeRoleArn" : {
+            "Description" : "Transit Assume Role Arn, This will be given and Parameter while launching Subscriber Initialization CFT",
+            "Value" : {"Fn::GetAtt": ["TransitAssumeRole","Arn"]}
+        },
+        "TransitSnsArn": {
+            "Description" : "Transit SNS Topic Arn, This will be given and Parameter while launching Subscriber Initialization CFT",
+            "Value" : {"Ref":"SNSTopic"}
+    }
+}
