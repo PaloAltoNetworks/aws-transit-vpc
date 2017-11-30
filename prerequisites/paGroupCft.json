@@ -1,0 +1,242 @@
+{
+    "AWSTemplateFormatVersion" : "2010-09-09",
+    "Description" : "Template to create PA group creation",
+    "Parameters" : {
+        "paloAltoAmiId" : {
+            "Description" : "AMI ID to use to spinup PA (BYOL)",
+            "Type" : "String",
+            "Default": "ami-dc28c6a6"
+        },
+        "paGroupName" : {
+            "Description" : "PA Group name",
+            "Type" : "String",
+            "Default": "paGroup-1"
+        },
+        "Node1Asn" : {
+            "Description" : "ASN for PA node 1",
+            "Type" : "String"
+        },
+        "Node2Asn" : {
+            "Description" : "ASN for PA node 2",
+            "Type" : "String"
+        },
+        "paloAltoInstanceType" : {
+            "Description" : "Instance Type for PA servers",
+            "Type" : "String",
+            "Default": "t2.large"
+        },
+        "sshKey" : {
+            "Description" : "SSH key to associate with PA Server",
+            "Type" : "AWS::EC2::KeyPair::KeyName"
+        },
+        "transitVpcMgmtAz1" : {
+            "Description" : "Transit VPC AZ1 MGMT subnet",
+            "Type" : "AWS::EC2::Subnet::Id"
+        },
+        "transitVpcMgmtAz2" : {
+            "Description" : "Transit VPC AZ2 MGMT subnet",
+            "Type" : "AWS::EC2::Subnet::Id"
+        },
+        "transitVpcDmzAz1" : {
+            "Description" : "Transit VPC AZ1 DMZ subnet",
+            "Type" : "AWS::EC2::Subnet::Id"
+        },
+        "transitVpcDmzAz2" : {
+            "Description" : "Transit VPC AZ2 DMZ subnet",
+            "Type" : "AWS::EC2::Subnet::Id"
+        },
+        "transitVpcDmzAz1SubnetCidr" : {
+            "Description" : "transitVpcDmzAz1SubnetCidr",
+            "Type" : "String",
+        "Default" : "10.100.0.0/27"
+        },
+        "transitVpcDmzAz1SubnetGateway" : {
+            "Description" : "transitVpcDmzAz1SubnetGateway",
+            "Type" : "String",
+        "Default" : "10.100.0.1"
+        },
+        "transitVpcDmzAz2SubnetCidr" : {
+            "Description" : "transitVpcDmzAz2SubnetCidr",
+            "Type" : "String",
+        "Default" : "10.100.0.32/27"
+        },
+        "transitVpcDmzAz2SubnetGateway" : {
+            "Description" : "transitVpcDmzAz2SubnetGateway",
+            "Type" : "String",
+        "Default" : "10.100.0.33"
+        },
+        "transitVpcTrustedSecurityGroup" : {
+            "Description" : "Security group ID for PA MGMT interface",
+            "Type" : "AWS::EC2::SecurityGroup::Id"
+        },
+        "transitVpcUntrustedSecurityGroup" : {
+            "Description" : "Security group ID for PA DMZ interface",
+            "Type" : "AWS::EC2::SecurityGroup::Id"
+        },
+        "paGroupInstanceProfile" : {
+            "Description" : "Instance profile to attach to PA group nodes",
+            "Type" : "String"
+        },
+        "paBootstrapBucketName" : {
+            "Description" : "Instance profile to attach to PA group nodes",
+            "Type" : "String",
+            "Default": "pa-bootstrap-jayan-01"
+        }
+   },
+  "Resources" : {
+    "paGroupNode1" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "ImageId" : { "Ref" : "paloAltoAmiId" },
+        "InstanceType" : { "Ref" : "paloAltoInstanceType"},
+        "KeyName" : { "Ref" : "sshKey" },
+        "IamInstanceProfile" : { "Ref" : "paGroupInstanceProfile" },
+        "NetworkInterfaces": [ { "AssociatePublicIpAddress": "false", "DeviceIndex": "0", "GroupSet": [ { "Ref" : "transitVpcTrustedSecurityGroup" } ], "SubnetId": { "Ref" : "transitVpcMgmtAz1" } } ],
+        "Tags" : [ { "Key" : "Name", "Value" : { "Fn::Join" : [ "-", [ { "Ref" : "paGroupName" },"N1" ] ] } } ],
+        "UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+             "vmseries-bootstrap-aws-s3bucket=",{"Ref":"paBootstrapBucketName"}
+            ]]}}
+      }
+    },
+    "paGroupNode1ENI":{
+      "Type" : "AWS::EC2::NetworkInterface",
+        "Properties" : {
+          "Description" : "eth1 ENI of paGroupNode1",
+          "GroupSet" : [ { "Ref" : "transitVpcUntrustedSecurityGroup" } ],
+          "SourceDestCheck" : false,
+          "SubnetId" : { "Ref" : "transitVpcDmzAz1" },
+          "Tags" : [ { "Key" : "Name", "Value" : { "Fn::Join" : [ "-", [ { "Ref" : "paGroupName" },"N1","DMZ" ] ] } } ]
+      }
+    },
+    "paGroupNode1EIP" : {
+      "Type" : "AWS::EC2::EIP",
+      "Properties" : { "Domain" : "vpc" }
+    },
+    "associatePaGroupNode1EIP" : {
+      "Type" : "AWS::EC2::EIPAssociation",
+      "Properties" : {
+        "AllocationId" : { "Fn::GetAtt" : [ "paGroupNode1EIP", "AllocationId" ]},
+        "NetworkInterfaceId" : { "Ref" : "paGroupNode1ENI" }
+      }
+    },
+    "attachPaGroupNode1ENI": {
+      "Type" : "AWS::EC2::NetworkInterfaceAttachment",
+      "DependsOn" : "paGroupNode1",
+      "Properties" : {
+        "DeleteOnTermination": true,
+        "DeviceIndex": 1,
+        "InstanceId": { "Ref": "paGroupNode1" },
+        "NetworkInterfaceId": { "Ref": "paGroupNode1ENI" }
+      }
+    },
+    "paGroupNode2" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "ImageId" : { "Ref" : "paloAltoAmiId" },
+        "InstanceType" : { "Ref" : "paloAltoInstanceType"},
+        "KeyName" : { "Ref" : "sshKey" },
+        "IamInstanceProfile" : { "Ref" : "paGroupInstanceProfile" },
+        "NetworkInterfaces": [ { "AssociatePublicIpAddress": "false", "DeviceIndex": "0", "GroupSet": [ { "Ref" : "transitVpcTrustedSecurityGroup" } ], "SubnetId": { "Ref" : "transitVpcMgmtAz2" } } ],
+        "Tags" : [ { "Key" : "Name", "Value" : { "Fn::Join" : [ "-", [ { "Ref" : "paGroupName" },"N2" ] ] } } ],
+        "UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+             "vmseries-bootstrap-aws-s3bucket=",{"Ref":"paBootstrapBucketName"}
+            ]]}}
+      }
+    },
+    "paGroupNode2ENI":{
+      "Type" : "AWS::EC2::NetworkInterface",
+        "Properties" : {
+          "Description" : "eth1 ENI of paGroupNode2",
+          "GroupSet" : [ { "Ref" : "transitVpcUntrustedSecurityGroup" } ],
+          "SourceDestCheck" : false,
+          "SubnetId" : { "Ref" : "transitVpcDmzAz2" },
+          "Tags" : [ { "Key" : "Name", "Value" : { "Fn::Join" : [ "-", [ { "Ref" : "paGroupName" },"N2","DMZ" ] ] } } ]
+      }
+    },
+    "paGroupNode2EIP" : {
+      "Type" : "AWS::EC2::EIP",
+      "Properties" : {
+        "Domain" : "vpc"
+      }
+    },
+    "associatePaGroupNode2EIP" : {
+      "Type" : "AWS::EC2::EIPAssociation",
+      "Properties" : {
+        "AllocationId" : { "Fn::GetAtt" : [ "paGroupNode2EIP", "AllocationId" ]},
+        "NetworkInterfaceId" : { "Ref" : "paGroupNode2ENI" }
+      }
+    },
+    "attachPaGroupNode2ENI": {
+      "Type" : "AWS::EC2::NetworkInterfaceAttachment",
+      "DependsOn" : "paGroupNode2",
+      "Properties" : {
+        "DeleteOnTermination": true,
+        "DeviceIndex": 1,
+        "InstanceId": { "Ref": "paGroupNode2" },
+        "NetworkInterfaceId": { "Ref": "paGroupNode2ENI" }
+      }
+    }
+  },
+  "Outputs": {
+    "N1Id": {
+    "Description": "Instance ID of node 1",
+        "Value": { "Ref": "paGroupNode1" }
+    },
+    "N2Id": {
+        "Description": "Instance ID of node 2",
+        "Value": { "Ref": "paGroupNode2" }
+    },
+    "N1Mgmt": {
+      "Description": "paGroupNode1 Management Private IP",
+      "Value": { "Fn::GetAtt" : [ "paGroupNode1", "PrivateIp" ] }
+    },
+    "N1Eip": {
+      "Description": "paGroupNode1 External ENI Public IP",
+      "Value": { "Ref" : "paGroupNode1EIP" }
+    },
+    "N1Pip": {
+      "Description": "paGroupNode1 External ENI Private IP",
+      "Value": { "Fn::GetAtt" : [ "paGroupNode1ENI", "PrimaryPrivateIpAddress"] }
+    },
+    "N2Mgmt": {
+      "Description": "paGroupNode2 Management Private IP",
+      "Value": { "Fn::GetAtt" : [ "paGroupNode2", "PrivateIp" ] }
+    },
+    "N2Eip": {
+      "Description": "paGroupNode2 External ENI Public IP",
+      "Value": { "Ref" : "paGroupNode2EIP" }
+    },
+    "N2Pip": {
+      "Description": "paGroupNode2 External ENI Private IP",
+      "Value": { "Fn::GetAtt" : [ "paGroupNode2ENI", "PrimaryPrivateIpAddress"] }
+    },
+    "PaGroupName": {
+      "Description": "PaGroupName",
+      "Value": { "Ref" : "paGroupName"}
+    },
+    "Az1SubnetCidr": {
+      "Description": "Subnet CIDR of Az1 subnet",
+      "Value": { "Ref" : "transitVpcDmzAz1SubnetCidr"}
+    },
+    "Az1SubnetGw": {
+      "Description": "Subnet gateway of DMZ Az1 subnet",
+      "Value": { "Ref" : "transitVpcDmzAz1SubnetGateway"}
+    },
+    "Az2SubnetCidr": {
+      "Description": "Subnet CIDR of Az2 subnet",
+      "Value": { "Ref" : "transitVpcDmzAz2SubnetCidr"}
+    },
+    "Az2SubnetGw": {
+      "Description": "Subnet gateway of DMZ Az2 subnet",
+      "Value": { "Ref" : "transitVpcDmzAz2SubnetGateway"}
+    },
+    "N1Asn": {
+      "Description": "PA Node 1 BGP ASN",
+      "Value": { "Ref" : "Node1Asn"}
+    },
+    "N2Asn": {
+      "Description": "PA Node 2 BGP ASN",
+      "Value": { "Ref" : "Node2Asn"}
+    }
+  }
+}
