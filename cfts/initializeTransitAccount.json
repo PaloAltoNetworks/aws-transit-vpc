@@ -1173,3 +1173,4 @@
             "Value" : {"Ref":"SNSTopic"}
     }
 }
+}
