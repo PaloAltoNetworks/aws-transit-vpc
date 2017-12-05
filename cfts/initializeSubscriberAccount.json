@@ -11,7 +11,8 @@
   "Parameters": {
     "LambdaFunctionsBucketName": {
       "Description": "Existing S3 bucket name which is having the Lambda funtions zip",
-      "Type": "String"
+      "Type": "String",
+      "Default": "palo-alto-lambda-functions-bucket"
     },
     "TransitAWSAccountNumber": {
       "Description": "Trasit AWS Account number required for Assume Role",
@@ -66,9 +67,9 @@
         "Type": "String"
     },
     "CloudTrailS3BucketName": {
-        "Description": "Creates a S3-Bucket Name for storing the CloudTrails logs. NOTE: Dont USE Capital letters, and S3 bucket names are globally unique, regardless of the AWS Region and AWS Account. So please prepend/append your aws account number to the name of bucket to avoid stack creation failure",
+        "Description": "Creates a S3-Bucket Name for storing the CloudTrails logs. NOTE: S3 bucket names are globally unique, regardless of the AWS Region and AWS Account. So please prepend/append your aws account number to the name of bucket to avoid stack creation failure",
         "Type": "String",
-        "Default": "subscribe-cloudtrail-bucket"
+        "Default": "cloudtrail-log-bucket"
     },
     "LaunchSubscriberVpc": {
         "Default": "No",
@@ -139,7 +140,7 @@
         "Type" : "AWS::CloudTrail::Trail",
         "DependsOn": ["CloudTrailS3Bucket", "S3CloudTrailPolicy"],
         "Properties" : {
-            "TrailName" : "AllRegions",
+            "TrailName" : {"Fn::Join": ["-", [{ "Ref": "AWS::StackName" }, "CloudTrail"]]},
             "IncludeGlobalServiceEvents" : true,
             "IsLogging" : true,
             "IsMultiRegionTrail" : true,
