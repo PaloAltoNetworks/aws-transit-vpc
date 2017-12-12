@@ -33,6 +33,8 @@ dynamodb = boto3.resource('dynamodb', region_name=region)
 #transitConfigTable="TransitConfig"
 
 def updateVpcTable(tableName,data,status):
+    """Updates the Transit VpcTable with VpcId, Node1VpnId, Node2VpnId, Region, IpSegment and CurrentStatus
+    """
     try:
         #VpcId is the primary key for VpcTable
         table=dynamodb.Table(tableName)
@@ -40,6 +42,8 @@ def updateVpcTable(tableName,data,status):
     except Exception as e:
         logger.error("Updating Transit VpcTalbe is Failed, Error: {}".format(str(e)))
 def updateBgpTunnelIpPool(bgpTableName,ipSegment):
+    """updates Transit BgpTunnleIpPool table attribute 'Available=YES'
+    """
     try:
         table=dynamodb.Table(bgpTableName)
         #Update BgpTunnelIpPool table Attribute "Available"="YES"
@@ -49,6 +53,8 @@ def updateBgpTunnelIpPool(bgpTableName,ipSegment):
         logger.error("Update BgpTunnelIpPool is failed, Error: {}".format(str(e)))
         
 def updatePaGroup(paGroupTableName,paGroupName,value):
+    """Updates Transit PaGroupInfo table attribute VpcCount to either +1 or -1 based on the value paramater passed to the function
+    """
     try:
         table=dynamodb.Table(paGroupTableName)
         response = table.query(KeyConditionExpression=Key('PaGroupName').eq(paGroupName))['Items']
@@ -60,6 +66,8 @@ def updatePaGroup(paGroupTableName,paGroupName,value):
         logger.error("updatePaGroupInfo() Table is failed, Error: {}".format(str(e)))
 
 def getPaGroupInfo(tableName,paGroup):
+    """Returns the specified Pagroup item from the PaGroupInfo table
+    """
     try:
         table=dynamodb.Table(tableName)
         response = table.query(KeyConditionExpression=Key('PaGroupName').eq(paGroup))['Items']
@@ -68,6 +76,8 @@ def getPaGroupInfo(tableName,paGroup):
         logger.error("Fetch Item from PaGroupInfo failed, Error: {}".format(str(e)))
 
 def getItemFromVpcTable(tableName,vpcId):
+    """Returns the specified item from VpcTable
+    """
     try:
         dynamodb = boto3.resource('dynamodb', region_name=region)
         table = dynamodb.Table(tableName)

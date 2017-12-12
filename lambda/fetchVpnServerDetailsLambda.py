@@ -41,18 +41,16 @@ Output:
 } 
 '''
 
-
-#transitConfigTable="TransitConfig"
-#region = 'us-east-1'
 transitConfigTable = os.environ['transitConfigTable']
 region = os.environ['Region']
 dynamodb = boto3.resource('dynamodb',region_name=region)
 
 def checkVpcCidrConflicts(vpcCidr,tableName):
+    """Check whether there is a VPCCIDR conflict:
+    If yes send notification back to Subscriber SNS that Vpn configuration failed
+    Create log VPCCIDR conflict “New VPCID, NewVPC CIDR, Existing VPCID, Existing VPCCIDR
+    """
     try:
-        #Check whether there is a VPCCIDR conflict:
-        #If yes send notification back to Subscriber SNS that Vpn configuration failed
-        #Create log VPCCIDR conflict “New VPCID, NewVPC CIDR, Existing VPCID, Existing VPCCIDR
         table=dynamodb.Table(tableName)
         response=table.scan(FilterExpression=Attr('VpcCidr').eq(vpcCidr))['Items']
         logger.info("Scan results of VpcTable: {}".format(response))
@@ -63,6 +61,9 @@ def checkVpcCidrConflicts(vpcCidr,tableName):
         logger.error("Checking of CIDR confilcts failed, Error: {}".format(str(e)))
 
 def getAvailableBgpTunnelIpPool(tableName, vpcId, paGroupName):
+    """Scans the BgpTunnleIpPool table with attribute 'Avaliable=YES', if it finds any items with this condition returns that item otherwise returns false
+    Calls the updateBgpTunnleIpPool function to update the attribute 'Available' to NO
+    """
     try:
         logger.info("Fetching BgpTunnelIpPool data with fileter status=available")
         table=dynamodb.Table(tableName)
@@ -77,6 +78,10 @@ def getAvailableBgpTunnelIpPool(tableName, vpcId, paGroupName):
         logger.error("getAvailableBgpTunnelIpPool failed, Error: {}".format(str(e)))
     
 def getAvailablePaGroup(tableName,maxCount):
+    """Scans the PaGroupInfo table with attributes 'InUse=YES' and 'VpcCount' less than MaxPaGroupCapacity, if it finds an items it will return that item, otherwise 
+    Otherwise: it scans the table with attribute 'InUse=NO', if it finds an item it will return othrwise returns False
+    Calls updatePaGroup() function to update the 'InUse' to YES and increment the VpcCount by +1
+    """
     try:
         table=dynamodb.Table(tableName)
         response=table.scan(FilterExpression=Attr('InUse').eq('YES') & Attr('VpcCount').lt(maxCount))['Items']
@@ -113,6 +118,9 @@ def getAvailablePaGroup(tableName,maxCount):
         logger.error("getAvailablePaGroup is failed, Error: {}".format(str(e)))
 
 def getAvailableVgwAsn(tableName,data):
+    """Scans the VgwAsn table with attribute 'InUse=NO', if it finds an item it will return that item, otherwise exit from the process
+    Calls updateVgwAnsTable() function to update the 'InUse' to YES and VpcId and VpcCidr
+    """
     try:
         table=dynamodb.Table(tableName)
         response=table.scan(FilterExpression=Attr('InUse').eq('NO'))['Items']
@@ -127,6 +135,8 @@ def getAvailableVgwAsn(tableName,data):
         logger.error("getAvailableVgwAsn is failed, Error: {}".format(str(e)))
         
 def updateBgpTunnelIpPool(ipSegment,tableConn, vpcId, paGroupName):
+    """Updates the BgpTunnelIpPool table attributes Available=NO, and add VpcId and PaGroup names to the item
+    """
     try:
         #Update BgpTunnelIpPool table Attribute "Available"="NO"
         tableConn.update_item(Key={'IpSegment':ipSegment},AttributeUpdates={'Available':{'Value':'NO','Action':'PUT'}, 'VpcId': {'Value':vpcId, 'Action':'PUT'}, 'PaGroupName':{'Value':paGroupName, 'Action':'PUT'}})
@@ -135,6 +145,8 @@ def updateBgpTunnelIpPool(ipSegment,tableConn, vpcId, paGroupName):
         logger.error("Error from updateBgpTunnelIpPool, {}".format(str(e)))
         
 def updatePaGroup(paGroupName,tableConn):
+    """Updates the Transit PaGroupInfo table with InUse=YES and increments the VpcCount by +1
+    """
     try:
         tableConn.update_item(Key={'PaGroupName':paGroupName},AttributeUpdates={'InUse':{'Value':'YES','Action':'PUT'},'VpcCount':{'Value':1,'Action':'ADD'}})
         logger.info("Successfully Updated PaGroupInfoTable attributes InUse=YES and incremented VpcCount")
@@ -142,6 +154,8 @@ def updatePaGroup(paGroupName,tableConn):
         logger.error("Error from updatePaGroup, {}".format(str(e)))
         
 def updateVgwAsnTable(id,data,tableConn):
+    """Updates Transit VgwAsn table with VpcId, VpcCidr, an InUse=YES
+    """
     try:
         #Update VgwAsn Table with InUse=YES, VpcId and VpcCidr values
         tableConn.update_item(Key={'VgwAsn':id},AttributeUpdates={'InUse':{'Value':'YES','Action':'PUT'},'VpcId':{'Value':data['VpcId'],'Action':'PUT'},'VpcCidr':{'Value':data['VpcCidr'],'Action':'PUT'}})
@@ -150,6 +164,8 @@ def updateVgwAsnTable(id,data,tableConn):
         logger.error("Error from updateVgwAsnTable, {}".format(str(e)))
     
 def updateVpcTable(tableName,data,paGroupName):
+    """Updates the Transit VpcTable with VpcId, VpcCidr, Region, SubscriberSnsArn, SubscriberAssumeRoleArn, PaGroupName and CurrentStatus of VPN connection
+    """
     try:
         #VpcCidr is the primary key for VpcTable
         table=dynamodb.Table(tableName)

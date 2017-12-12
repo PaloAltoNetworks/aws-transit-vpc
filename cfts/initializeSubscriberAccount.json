@@ -3,16 +3,15 @@
   "Metadata": {
         "AWS::CloudFormation::Interface": {
           "ParameterGroups": [
-            { "Label": { "default": "Required Parameters" }, "Parameters": [ "TransitSNSTopicArn", "TransitAssumeRoleArn", "TransitAWSAccountNumber", "LambdaFunctionsBucketName", "SshKey", "az1", "az2" ] },
-            { "Label": { "default": "Default Parameters" }, "Parameters": [ "LaunchSubscriberVpc", "LambdaZipFile", "CloudTrailS3BucketName", "VpcCidrRange", "SubnetCidr1", "SubnetCidr2", "SubnetCidr3", "SubnetCidr4" ] }
+            { "Label": { "default": "Required Parameters" }, "Parameters": [ "TransitSNSTopicArn", "TransitAssumeRoleArn", "TransitAWSAccountNumber", "LambdaFunctionsBucketName", "CloudTrailS3BucketName", "SshKey", "az1", "az2" ] },
+            { "Label": { "default": "Default Parameters" }, "Parameters": [ "LaunchSubscriberVpc", "LambdaZipFile", "VpcCidrRange", "SubnetCidr1", "SubnetCidr2", "SubnetCidr3", "SubnetCidr4" ] }
           ]
         }
     },
   "Parameters": {
     "LambdaFunctionsBucketName": {
       "Description": "Existing S3 bucket name which is having the Lambda funtions zip",
-      "Type": "String",
-      "Default": "palo-alto-lambda-functions-bucket"
+      "Type": "String"
     },
     "TransitAWSAccountNumber": {
       "Description": "Trasit AWS Account number required for Assume Role",
@@ -68,8 +67,7 @@
     },
     "CloudTrailS3BucketName": {
         "Description": "Creates a S3-Bucket Name for storing the CloudTrails logs. NOTE: S3 bucket names are globally unique, regardless of the AWS Region and AWS Account. So please prepend/append your aws account number to the name of bucket to avoid stack creation failure",
-        "Type": "String",
-        "Default": "cloudtrail-log-bucket"
+        "Type": "String"
     },
     "LaunchSubscriberVpc": {
         "Default": "No",
@@ -149,7 +147,6 @@
     },
     "CloudTrailS3Bucket": {
         "Type" : "AWS::S3::Bucket",
-        "DependsOn": ["CloudTrailLambda"],
         "Properties" : {
             "BucketName" : {"Ref":"CloudTrailS3BucketName"},
             "NotificationConfiguration" : {
@@ -802,7 +799,8 @@
             "SubscriberConfig": {"Ref":"DynamoDbSubscriberConfig"},
             "TransitAssumeRoleArn": {"Ref": "TransitAssumeRoleArn"},
             "SubscriberLocalDb": {"Ref":"DynamoDbSubscriberLocalDb"},
-            "TransitSNSTopicArn": {"Ref": "TransitSNSTopicArn"}
+            "TransitSNSTopicArn": {"Ref": "TransitSNSTopicArn"},
+            "CloudTrailBucketName": {"Ref":"CloudTrailS3Bucket"}
         }
     },
     "SubscriberInitializeLambda":{

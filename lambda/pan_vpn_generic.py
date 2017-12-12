@@ -72,6 +72,8 @@ class XmlDictConfig(dict):
 
 
 def makeApiCall(hostname,data):
+    '''Function to make API call
+    '''
     # Todo: 
     # Context to separate function?
     # check response for status codes and return reponse.read() if success 
@@ -84,7 +86,7 @@ def makeApiCall(hostname,data):
     return urllib.request.urlopen(url, data=encoded_data, context=ctx).read()
 
 def getApiKey(hostname, username, password):
-    ''' Generate API keys using passwod
+    '''Generate API keys using username/password
     API Call: http(s)://hostname/api/?type=keygen&user=username&password=password
     '''
     data = {
@@ -96,13 +98,18 @@ def getApiKey(hostname, username, password):
     return xml.etree.ElementTree.XML(response)[0][0].text
 
 def panOpCmd(hostname, api_key, cmd):
+    '''Function to make an 'op' call to execute a command
+    '''
     data = {
         "type" : "op",
         "key" : api_key,
         "cmd" : cmd
     }
     return makeApiCall(hostname, data)
+
 def panCommit(hostname, api_key, message=""):
+    '''Function to commit configuration changes
+    '''
     data = {
         "type" : "commit",
         "key" : api_key,
@@ -111,6 +118,9 @@ def panCommit(hostname, api_key, message=""):
     return makeApiCall(hostname, data)
 
 def checkPaGroupReady(username, password, paGroup):
+    '''Function to check whether a PaGroup (both Nodes N1 and N2) is ready to accept API calls
+    This is done by trying to generate "API" key using username/password
+    '''
     try:
         api_key_N1 = getApiKey(paGroup['N1Mgmt'], username, password)
         api_key_N2 = getApiKey(paGroup['N2Mgmt'], username, password)
@@ -125,15 +135,23 @@ def checkPaGroupReady(username, password, paGroup):
 
 # Test This
 def configDeactivateLicenseApiKey(hostname, api_key, license_api_key):
+    '''Function to configure DeactivateLicense API Key
+    This function is used during initialization of a PA Node and requires internet connectivity
+    '''
     cmd = "<request><license><api-key><set><key>" + license_api_key + "</key></set></api-key></license></request>"
     return panOpCmd(hostname, api_key, cmd)
 
 # Test this
 def deactivateLicense(hostname, api_key):
+    '''Function to Deactivate / remove license associated with a PA node
+    This function is used during decommision of a server and requires internet connectivity
+    '''
     cmd = "<request><license><deactivate><VM-Capacity><mode>auto</mode></VM-Capacity></deactivate></license></request>"
     return panOpCmd(hostname, api_key, cmd)
     
 def panSetConfig(hostname, api_key, xpath, element):
+    '''Function to make API call to "set" a specific configuration
+    '''
     data = {
         'type': 'config',
         'action': 'set',
@@ -147,6 +165,8 @@ def panSetConfig(hostname, api_key, xpath, element):
     return response
 
 def panGetConfig(hostname, api_key, xpath):
+    '''Function to make API call to "get" (or read or list) a specific configuration
+    '''
     data = {
         'type': 'config',
         'action': 'get',
@@ -159,6 +179,9 @@ def panGetConfig(hostname, api_key, xpath):
     return response
 
 def panEditConfig(hostname, api_key, xpath, element):
+    '''Function to make API call to "edit" (or modify) a specific configuration
+    Note: Some properties need "set" method instead of "edit" to work
+    '''
     data = {
         'type': 'config',
         'action': 'edit',
@@ -173,12 +196,16 @@ def panEditConfig(hostname, api_key, xpath, element):
 
 
 def panRollback(hostname, api_key, username="admin"):
+    '''Function to rollback uncommited changes
+    '''
     # https://firewall/api/?key=apikey&type=op&cmd=<revert><config><partial><admin><member>admin-name</member></admin></partial></config></revert>
     # panOpCmd(hostname, api_key, cmd)
     cmd = "<revert><config><partial><admin><member>" + username + "</member></admin></partial></config></revert>"
     panOpCmd(hostname, api_key, cmd)
 
 def getTunnelUnits(hostname, api_key):
+    '''Function to fet all tunnel interfaces and return it as a list. This is used to find unused tunnel interface id while creating a new one.
+    '''
     # Get all tunnel interface ids
     xpath = "/config/devices/entry[@name='localhost.localdomain']/network/interface/tunnel/units"
     response = panGetConfig(hostname, api_key, xpath)
@@ -194,6 +221,8 @@ def getTunnelUnits(hostname, api_key):
     return tunnelNames
 
 def getFreeTunnelInfIds(tunnelNames, no_of_ids = 2):
+    '''Function to return two unused tunnel ids within range 1-9999 and not already used by names in the list 'tunnelNames'
+    '''
     # Function to return valid tunnel ids that can be used to create new tunnel interfaces
     range_start = 1
     range_end = 9999
@@ -211,7 +240,8 @@ def getFreeTunnelInfIds(tunnelNames, no_of_ids = 2):
         return newIds
 
 def createIkeGateway(hostname, api_key, name, psk, ikeProfile, pa_dmz_inf, peerIp):
-    # Create IKE Gateway
+    '''Function to create IKE Gateway
+    '''
     xpath = "/config/devices/entry[@name='localhost.localdomain']/network/ike/gateway/entry[@name='{0}']".format(name)
     element = "<authentication><pre-shared-key><key>{0}</key></pre-shared-key></authentication>\
               <protocol><ikev1><dpd><enable>yes</enable><interval>10</interval><retry>3</retry></dpd>\
@@ -225,7 +255,8 @@ def createIkeGateway(hostname, api_key, name, psk, ikeProfile, pa_dmz_inf, peerI
     return panSetConfig(hostname, api_key, xpath, element)
 
 def createIpecTunnelInf(hostname, api_key, tunnelInfId, tunnelInfIp="ip/30", mtu=1427):
-    # Create tunnel interface to use with IPsec
+    '''Function to create tunnel interface to use with IPsec
+    '''
     xpath = "/config/devices/entry[@name='localhost.localdomain']/network/interface/tunnel/units/entry[@name='tunnel.{0}']".format(tunnelInfId)
     element = "<ip><entry name='{0}/30'/></ip><mtu>{1}</mtu>".format(tunnelInfIp, mtu)
     #print("Add: IpsecTunnelInf")
@@ -234,6 +265,8 @@ def createIpecTunnelInf(hostname, api_key, tunnelInfId, tunnelInfIp="ip/30", mtu
     return panSetConfig(hostname, api_key, xpath, element)
 
 def createIpsecTunnel(hostname, api_key, tunnelName, ikeName, ipsecProfile, tunnelInfId):
+    '''Function to create IPSec tunnel
+    '''
     xpath = "/config/devices/entry[@name='localhost.localdomain']/network/tunnel/ipsec/entry[@name='{0}']".format(tunnelName)
     element = "<auto-key><ike-gateway><entry name='{0}'/></ike-gateway><ipsec-crypto-profile>{1}</ipsec-crypto-profile></auto-key><tunnel-monitor><enable>no</enable>\
               </tunnel-monitor><tunnel-interface>tunnel.{2}</tunnel-interface>".format(ikeName, ipsecProfile, tunnelInfId)
@@ -243,11 +276,15 @@ def createIpsecTunnel(hostname, api_key, tunnelName, ikeName, ipsecProfile, tunn
     return panSetConfig(hostname, api_key, xpath, element)
 
 def addInfToRouter(hostname, api_key, tunnelInfId, virtualRouter="default"):
+    '''Function to add an interface to a Virtual-Router
+    '''
     xpath = "/config/devices/entry[@name='localhost.localdomain']/network/virtual-router/entry[@name='{0}']/interface".format(virtualRouter)
     element = "<member>tunnel.{0}</member>".format(tunnelInfId)
     return panSetConfig(hostname, api_key, xpath, element)
 
 def addInfToZone(hostname, api_key, zone, tunnelInfId):
+    '''Function to add an interface to a Zone
+    '''
     xpath = "/config/devices/entry[@name='localhost.localdomain']/vsys/entry[@name='vsys1']/zone/entry[@name='{0}']/network/layer3".format(zone)
     element = "<member>tunnel.{0}</member>".format(tunnelInfId)
     #return panSetConfig(hostname, api_key, xpath, element)
@@ -256,6 +293,8 @@ def addInfToZone(hostname, api_key, zone, tunnelInfId):
     print(x)
 
 def addToPeerGroup(hostname, api_key, virtualRouter, peerGroup, peerName, tunnel_int_ip, tunnelInfId, tunnel_int_peer_ip, peerAsn):
+    '''Add IPSec tunnel interface to a BGP Peer group
+    '''
     xpath = "/config/devices/entry[@name='localhost.localdomain']/network/virtual-router/entry[@name='{0}']/protocol/bgp/peer-group/entry[@name='{1}']/peer/entry[@name='{2}']".format(virtualRouter, peerGroup, peerName)
     element = "<connection-options><incoming-bgp-connection><remote-port>0</remote-port><allow>yes</allow></incoming-bgp-connection><outgoing-bgp-connection><local-port>0</local-port><allow>yes</allow></outgoing-bgp-connection><multihop>0</multihop><keep-alive-interval>10</keep-alive-interval><open-delay-time>0</open-delay-time><hold-time>30</hold-time><idle-hold-time>15</idle-hold-time></connection-options><local-address><ip>{0}</ip><interface>tunnel.{1}</interface></local-address><peer-address><ip>{2}</ip></peer-address><bfd><profile>Inherit-vr-global-setting</profile></bfd><max-prefixes>5000</max-prefixes><peer-as>{3}</peer-as><enable>yes</enable><reflector-client>non-client</reflector-client><peering-type>unspecified</peering-type>".format(tunnel_int_ip, tunnelInfId, tunnel_int_peer_ip, peerAsn)
     return panSetConfig(hostname, api_key, xpath, element)
@@ -265,12 +304,16 @@ def addToPeerGroup(hostname, api_key, virtualRouter, peerGroup, peerName, tunnel
 
 
 def isLicenseApplied():
+    '''Function to check whether license is applied
+    '''
     # Todo
     # return true if license is applied
     # return false if no license found
     pass
 
 def isLicenseApiConfigured():
+    '''Function to check whether deregister license api key is configured
+    '''
     # Todo
     # Check whether license renewal mechanism is configured
     pass
@@ -278,6 +321,8 @@ def isLicenseApiConfigured():
 
 
 def loadVpnConfigFromS3(bucketName,vpnId):
+    '''Function to read AWS-IPSec configuration (xml format) from an S3 bucket, parse it return important data as a dictionary
+    '''
     filename = ".".join([vpnId, "xml"])
     s3 = boto3.resource('s3')
     try:
@@ -304,6 +349,8 @@ def loadVpnConfigFromS3(bucketName,vpnId):
     return  vpnConfDict
 
 def getVpnConfigurationAndUploadToS3(vpnId, region, bucketName):
+    '''Function to download AWS VPN configuration in xml format and upload to S3
+    '''
     # IAM Permissions
     # s3:PutObject
     # ec2:DescribeVpnConnections
@@ -322,10 +369,10 @@ def getVpnConfigurationAndUploadToS3(vpnId, region, bucketName):
     return True
 
 def paConfigureVpn(hostname, api_key, vpnConfDict, peerGroup, ikeProfile="default", ipsecProfile="default", pa_dmz_inf="ethernet1/1", virtualRouter="default", zone="UNTRUST"):
-    # Configure T1 IKE
-    # createIkeGateway(hostname, api_key, name, psk, ikeProfile, pa_dmz_inf, peerIp):
+    '''Function to configure IPSec vpn on a PA Node
+    '''
     try:
-        # name vpnid-ike-1
+        # Configure T1 IKE
         createIkeGateway(hostname, api_key,
                             "-".join(["ike", vpnConfDict['id'], "0"]),
                             vpnConfDict['t1_ike_psk'], ikeProfile, 
@@ -382,33 +429,43 @@ def paConfigureVpn(hostname, api_key, vpnConfDict, peerGroup, ikeProfile="defaul
 
 
 def editIpObject(hostname, api_key, name, value):
+    '''Function to edit/update an existing IP Address object on a PA Node
+    '''
     xpath = "/config/devices/entry[@name='localhost.localdomain']/vsys/entry[@name='vsys1']/address/entry[@name='{0}']/ip-netmask".format(name)
     element = "<ip-netmask>{0}</ip-netmask>".format(value)
     return panEditConfig(hostname, api_key, xpath, element)
 
 def updateRouterIdAndAsn(hostname, api_key, routerId, routerAsn, virtualRouter="default"):
+    '''Function to edit/update BGP RourterID(Public IP) and ASN on a PA Node
+    '''
     xpath = "/config/devices/entry[@name='localhost.localdomain']/network/virtual-router/entry[@name='{0}']/protocol/bgp".format(virtualRouter)
     element = "<router-id>{0}</router-id><local-as>{1}</local-as>".format(routerId, routerAsn)
     return panSetConfig(hostname, api_key, xpath, element)
 
-def updateDetaultRouteNextHope(hostname, api_key, subnetGateway, virtualRouter="default"):
+def updateDefaultRouteNextHope(hostname, api_key, subnetGateway, virtualRouter="default"):
+    '''Function to update default route virtual router
+    '''
     xpath = "/config/devices/entry[@name='localhost.localdomain']/network/virtual-router/entry[@name='{0}']/routing-table/ip/static-route/entry[@name='default']/nexthop".format(virtualRouter)
     element = "<ip-address>{0}</ip-address>".format(subnetGateway)
     return panSetConfig(hostname, api_key, xpath, element)
 
 def pa_initialize(hostname, api_key, pa_dmz_priv_ip, pa_dmz_pub_ip, pa_asn, pa_dmz_subnet_gw, SubnetCidr, license_api_key=""):
+    '''Function to initialize PA node
+    '''
     # Update 'eth1' object with private IP of eth1 interface
     mask = SubnetCidr.split("/")[1]
     response1 = editIpObject(hostname, api_key, "eth1", "/".join([pa_dmz_priv_ip,mask]))
     # Update BGP router ID with public IP of eth1 and BGP ASN
     response2 = updateRouterIdAndAsn(hostname, api_key, pa_dmz_pub_ip, pa_asn)
     # Update next hop of static route to match subnet gw
-    response3 = updateDetaultRouteNextHope(hostname, api_key, pa_dmz_subnet_gw)
+    response3 = updateDefaultRouteNextHope(hostname, api_key, pa_dmz_subnet_gw)
     # Add ApiKey to deactivate License
     response4 = configDeactivateLicenseApiKey(hostname, api_key, license_api_key)
     return [response1, response2, response3, response4]
 
 def paGroupSetupPaPeers(api_key, newPaGroup, paGroupList):
+    '''Function to configure BGP peering between a new PAGroup and existing PAGroups. ActiveNode/PassiveNode of new PA group will be peered with corresponding node in exising PA groups.
+    '''
     failed = False
     for paGroup in paGroupList:
         if paGroup['PaGroupName'] == newPaGroup['PaGroupName']:
@@ -450,11 +507,17 @@ def paGroupSetupPaPeers(api_key, newPaGroup, paGroupList):
         return False
 
 def pa_add_paPeer(hostname, api_key, peerGroup, peerName, pa_peer_ip, peerAsn, virtualRouter="default", tunnelInf="ethernet1/1"):
+    '''Function to add PA node to a BGP peer group
+    NOTE: This is slightly different from adding tunnel interface to BGP Peer group, thus a separate function
+    '''
     xpath = "/config/devices/entry[@name='localhost.localdomain']/network/virtual-router/entry[@name='{0}']/protocol/bgp/peer-group/entry[@name='{1}']/peer/entry[@name='{2}']".format(virtualRouter, peerGroup, peerName)
     element = "<connection-options><incoming-bgp-connection><remote-port>0</remote-port><allow>yes</allow></incoming-bgp-connection><outgoing-bgp-connection><local-port>0</local-port><allow>yes</allow></outgoing-bgp-connection><multihop>0</multihop><keep-alive-interval>10</keep-alive-interval><open-delay-time>0</open-delay-time><hold-time>30</hold-time><idle-hold-time>15</idle-hold-time></connection-options><local-address><interface>{0}</interface></local-address><peer-address><ip>{1}</ip></peer-address><bfd><profile>Inherit-vr-global-setting</profile></bfd><max-prefixes>5000</max-prefixes><peer-as>{2}</peer-as><enable>yes</enable><reflector-client>non-client</reflector-client><peering-type>unspecified</peering-type>".format(tunnelInf, pa_peer_ip, peerAsn)
     return panSetConfig(hostname, api_key, xpath, element)
 
 def pa_create_named_configuration_backup():
+    '''Function to create a named configuration backup.
+    This may be useful incase of restoring PA Node to a specific point
+    '''
     pass
 
 def createNewPaGroup(region, stackName, templateUrl, paGroupName, sshKey, transitVpcMgmtAz1, transitVpcMgmtAz2,
@@ -492,6 +555,8 @@ def createNewPaGroup(region, stackName, templateUrl, paGroupName, sshKey, transi
 
 
 def parseStackOutput(stackName, region):
+    '''Function to parse stack output (PAGroup), convert it into a Dictionary and return it
+    '''
     import time
     client = boto3.client('cloudformation', region_name=region)
     status = client.describe_stacks(StackName=stackName)
@@ -509,6 +574,8 @@ def parseStackOutput(stackName, region):
 
 
 def paGroupInitialize(api_key, paGroup, DeLicenseApiKey=""): 
+    '''Function to initialize a PA Group (Both nodes)
+    '''
     # Initialize NODE1
     result1 = pa_initialize(paGroup['N1Mgmt'], api_key, paGroup['N1Pip'], paGroup['N1Eip'], paGroup['N1Asn'], paGroup['Az1SubnetGw'], paGroup['Az1SubnetCidr'], DeLicenseApiKey)
     # Initialize NODE2
@@ -524,6 +591,8 @@ def paGroupInitialize(api_key, paGroup, DeLicenseApiKey=""):
 def paGroupConfigureVpn(api_key, paGroup, vpnConfigBucket, N1VpnId, N2VpnId, ikeProfile="default",
                         ipsecProfile="default", pa_dmz_inf="ethernet1/1", virtualRouter="default",
                         zone="UNTRUST"):
+    '''Function to configure VPN with a PAGroup and a VPC. Each node in the PAGroup will establish a VPN with the VPC.
+    '''
     # Configure VPN on Node1
     vpnN1Conf = loadVpnConfigFromS3(vpnConfigBucket, N1VpnId)
     peerGroup = "Active" # Incase needed, this can come from PaGroupInfo eg: paGroup['PaN1Type'] = "Active"
@@ -546,6 +615,8 @@ def paGroupConfigureVpn(api_key, paGroup, vpnConfigBucket, N1VpnId, N2VpnId, ike
 
 
 def panDelConfig(hostname, api_key, xpath):
+    '''Function to delete delete a configuration
+    '''
     data = {
             'type': 'config',
             'action': 'delete',
@@ -558,6 +629,9 @@ def panDelConfig(hostname, api_key, xpath):
 
 
 def paGroupDelPaPeers(api_key, newPaGroup, paGroupList):
+    '''Function to remove a PAGroup from existing BGP peer network. This is done by deleting entries related to N1/N2 of the PAGroup from other active PAGroups.
+    This need to be done before decommisioning a PAGroup
+    '''
     failed = False
     for paGroup in paGroupList:
         if paGroup['PaGroupName'] == newPaGroup['PaGroupName']:
@@ -588,6 +662,8 @@ def paGroupDelPaPeers(api_key, newPaGroup, paGroupList):
 
 
 def paGroupDeleteVpn(api_key, paGroup, N1VpnId, N2VpnId):
+    '''Function to delete IPSec VPN configuration between a PAGroup (both nodes) and a VPC
+    '''
     # node1
     pa_delete_ipsec_vpn(paGroup['N1Mgmt'], api_key, N1VpnId, "Active")
     # Commit
@@ -603,6 +679,8 @@ def paGroupDeleteVpn(api_key, paGroup, N1VpnId, N2VpnId):
 
 
 def pa_delete_ipsec_vpn(hostname, api_key, vpnId, peerGroup):
+    '''Function to delete IPSec vpn on a PA Node
+    '''
     ipsec_1_name = "-".join(["ipsec", vpnId, "0"])
     ipsec_2_name = "-".join(["ipsec", vpnId, "1"])
     ike_gw_1 = "-".join(["ike", vpnId, '0'])
@@ -638,51 +716,59 @@ def pa_delete_ipsec_vpn(hostname, api_key, vpnId, peerGroup):
     deleteIpecTunnelInf(hostname, api_key, tun2)
 
 def get_tun_inf_from_ipsec(hostname, api_key, tunnelName):
+    '''Function to fetch tunnel interface associated with an IPSec configuration
+    '''
     xpath = "/config/devices/entry[@name='localhost.localdomain']/network/tunnel/ipsec/entry[@name='{0}']".format(tunnelName)
     result = panGetConfig(hostname, api_key, xpath)
     exp = re.compile('>(tunnel\.[0-9]+)<')
     return exp.findall(str(result))[0]
 
-# Delete ipsec tunnels
 def deleteIpsecTunnel(hostname, api_key, tunnelName):
+    '''Function to delete IPSec tunnel
+    '''
     print("Deleting ipsec tunnel: ",tunnelName)
     xpath = "/config/devices/entry[@name='localhost.localdomain']/network/tunnel/ipsec/entry[@name='{0}']".format(tunnelName)
     result = panDelConfig(hostname, api_key, xpath)
     return result
 
-# Remove tun interface from peerGroup
 def deleteFromPeerGroup(hostname, api_key, peerGroup, peerName, virtualRouter):
+    '''Function to remove tun interface from peerGroup
+    '''
     print("Remove tunnel interface from peer group: ",peerGroup)
     xpath = "/config/devices/entry[@name='localhost.localdomain']/network/virtual-router/entry[@name='{0}']/protocol/bgp/peer-group/entry[@name='{1}']/peer/entry[@name='{2}']".format(virtualRouter,peerGroup,peerName)
     result = panDelConfig(hostname, api_key, xpath)
     return result
 
 
-# Disassociate the tunnel interfaces with the Virtual Router
 def removeInfFromRouter(hostname, api_key, tunnelInfId, virtualRouter):
+    '''Function to disassociate the tunnel interfaces from Virtual Router
+    '''
     print("Disassociating the tunnel inf from virtual router")
     xpath = "/config/devices/entry[@name='localhost.localdomain']/network/virtual-router/entry[@name='{0}']/interface/member[text()='{1}']".format(virtualRouter,tunnelInfId)
     result = panDelConfig(hostname, api_key, xpath)
     return result
 
-# Disassociate the tunnel interfaces with the Zone
 def removeInfFromZone(hostname, api_key, tunnelInfId, zone):
+    '''Function to disassociate the tunnel interfaces from Zone
+    '''
     print("Disassociate the tunnel interfaces with the Zone")
     xpath = "/config/devices/entry[@name='localhost.localdomain']/vsys/entry[@name='vsys1']/zone/entry[@name='{0}']/network/layer3/member[text()='{1}']".format(zone,tunnelInfId)
     result = panDelConfig(hostname, api_key, xpath)
     return result
 
 
-# Delete Ipsec tunnel interface
 def deleteIpecTunnelInf(hostname, api_key, tunnelInfId):
+    '''Function to delete Ipsec tunnel interface
+    '''
     print("Delete Ipsec tunnel interface: ",tunnelInfId)
     xpath = "/config/devices/entry[@name='localhost.localdomain']/network/interface/tunnel/units/entry[@name='{0}']".format(tunnelInfId)
     result = panDelConfig(hostname, api_key, xpath)
     return result
 
 
-# Delete IKE gateway
 def deleteIkeGateway(hostname, api_key, ikeName):
+    '''Function to delete IKE Gateway
+    '''
     print("Delete Ike gateway: ",ikeName)
     xpath = "/config/devices/entry[@name='localhost.localdomain']/network/ike/gateway/entry[@name='{0}']".format(ikeName)
     result = panDelConfig(hostname, api_key, xpath)

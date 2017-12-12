@@ -30,12 +30,12 @@ Input:
 } 
 '''
 
-#subscriberConfigTable="SubscriberConfig"
-#region = "us-east-1"
 subscriberConfigTable = os.environ['subscriberConfigTable']
 region = os.environ['Region']
         
 def putItemSubscriberLocalDb(tableName,item):
+    """Puts an Item into the SubscriberLocalDb table with VpcId, VpcCidr, VgwId, Cgw1Id, Cgw2Id, Vpn1Id, Vpn2Id and PaGroupName
+    """
     try:
         dynamodb = boto3.resource('dynamodb',region_name=region)
         table = dynamodb.Table(tableName)
@@ -45,6 +45,8 @@ def putItemSubscriberLocalDb(tableName,item):
         logger.error("Updating LocalDb failed, Error: {}".format(str(e)))
 
 def updateVpcVpnTable(tableName,item):    
+    """Updates VpcVpnTable with VpnId, VpcId, PaGroupName and PaGroupNode
+    """
     try:
         dynamodb = boto3.resource('dynamodb',region_name=region)
         table = dynamodb.Table(tableName)
@@ -76,6 +78,7 @@ def lambda_handler(event,context):
                 cgwNode2Id=createCgw(event['N2Eip'],event['N2Asn'],event['Region'],cgw2Tag)
                 logger.info("CGW - {} is created for VPC - {}".format(cgwNode1Id,event['VpcId']))
             else:
+                logger.info("CGWs are already created, CgwNode1Id: {}, CgwNode2Id: {}".format(cgwIds[0], cgwIds[1]))
                 cgwNode1Id = cgwIds[0]
                 cgwNode2Id = cgwIds[1]
 

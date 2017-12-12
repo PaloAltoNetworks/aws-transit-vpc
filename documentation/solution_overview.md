@@ -7,6 +7,9 @@ This solution automates baseline Firewall Services VPC solution. In baseline Fir
 
 All Spoke VPCs are connected to Palo Alto Firewall located in HUB VPC. All Spoke VPCs can talk to each other by transiting over Palo Alto (PA) servers located in HUB VPC. For redundancy, there will be a pair of PA server attached to a VPC and each of the node in the pair will be located in a different availability zone.
 
+## Architecture Diagram
+![alt text](images/PaloAlto_architecture.png "Architecture Diagram")
+
 ## Design considerations
 1. When a Spoke VPC or Subscribing VPC is created, it should trigger automatic configuration of VPN with a PA server pair in HUB VPC
 
@@ -18,13 +21,13 @@ All Spoke VPCs are connected to Palo Alto Firewall located in HUB VPC. All Spoke
 
 5. When new PA Groups are created to support new VPCs, each node of the newly created PA Group should establish BGP peer with nodes associated with other PA groups which belong to the same AZ
 
-6. To avoid traffic from Subscribing VPC to pass through both the VPN tunnels (tunnel to Node1 and Node2 of the PA group it is associated with), BGP configuration on one of the node should have an MED value set that is different from the other. To satisfy this requirement, node1 of all PA group will be using "active" bgp peer group and node2 will be using "passive" bgp peer group. The difference between these peer groups is that "passive" peer group has an MED value set and "active" doesn't
+6. To avoid traffic from Subscribing VPC to pass through both the VPN tunnels (tunnel to Node1 and Node2 of the PA group it is associated with), BGP configuration on one of the node should have an MED value set that is different from the other. To satisfy this requirement, node1 of all PA group will be using "active" bgp peer group and node2 will be using "passive" bgp peer group. The difference between these peer groups is that "passive" peer group has an MED value set and "active" does not
 
 7. Minimum manual steps from a customer who want to setup this system
 
 8. Un subscription from the system should be automatic
 
-9. System shouldn't spin up new PA (or PA Group) if existing system have capacity to host new VPC
+9. System should not spin up new PA (or PA Group) if existing system have capacity to host new VPC
 
 10. When configuring AWS VPN, AWS allocates /30 ip ranges for each tunnel associated with a VPN GW. There could be conflict if subscribers are from different region or from different AWS accounts.
 
@@ -88,24 +91,26 @@ This logical system takes care of automatically configuring VPN and managing res
 10. Transit State machine (AWS Stepfunction)
 
 ##### Transit SNS
+Transit SNS is an SNS created as part of Transit environment setup. Subscriber system communicates with Transit system by sending notification to TransitSns. It is also connected to TransitDecider Lambda, so any new notification will trigger TransitDecider Lambda
 
-##### Transit Task Handler
+##### Transit Task Handler / TransitDecider
+TransitDecider lambda gets invoked whenever there is a new Task pushed on to Transit SNS. It takes the task, parse the content and pushes it into HighPriorityQueue or LowPriorityQueue. All delete action and all actions which are related to rebalance (Task definition has key "Rebalance = True", indicating that task is related to Rebalance operation)
 
 ##### BgpTunnelPool (DynamoDB Table)
 | IpSegment       | Available | N1T1            |  N1T2           | N2T1            | N2T2            |
-| --------------- | --------- | --------------- | --------------- | --------------- | --------------- |
+|-----------------|-----------|-----------------|-----------------|-----------------|-----------------|
 | 169.254.6.0/28  | Yes       | 169.254.6.0/30  | 169.254.6.4/30  | 169.254.6.8/30  | 169.254.6.12/30 |
 | 169.254.6.16/28 | Yes       | 169.254.6.20/30 | 169.254.6.24/30 | 169.254.6.28/30 | 169.254.6.32/30 |
 
 
 ##### PgGroupInfo (DynamoDB Table)
 | PaGroupName | InUse | N1Asn  |  N2Asn | VpcCount |
-| ----------- | ----- | ------ | ------ | -------- |
+|-------------|-------|--------|--------|----------|
 | PaGroup1    | Yes   | 64827  | 64828  | 0        |
 
 ##### TransitConfig (DynamoDB Table)
 | Property                         | Value
-| -------------------------------- | -------------------------------------------------------------------------------- |
+|----------------------------------|----------------------------------------------------------------------------------|
 | TransitVpcTrustedSecurityGroupId | sg-xxxxxxx                                                                       |
 | UserName                         | admin                                                                            |
 | PaGroupMaxVpc                    | 4                                                                                |
@@ -143,21 +148,23 @@ This logical system takes care of automatically configuring VPN and managing res
 
 ##### VgwAsn (DynamoDB Table)
 | VgwAsn | InUse | VpcId       | VpcCidr    |
-| ------ | ----- | ----------- | ---------- |
+|--------|-------|-------------|------------|
 | 64076  | Yes   | vpc-xxxxxxx | 10.x.x.x/x |
 
 ##### VpcTable (DynamoDB Table)
 | VpcId       |	VpcCidr    | PaGroupName |	Node1VpnId | Node2VpnId  | SubscriberAssumeRoleArn  | SubscriberSnsArn         | CurrentStatus |	IpSegment |
-| ----------- | ---------- | ----------- | ----------- | ----------- | ------------------------ | ------------------------ | ------------- | ------------ |
-| vpc-xxxxxxx | 10.x.x.x/x | paGroup1    | vpn-xxxxxxx | vpn-xxxxxxy | arn:iam:987654321:iamarn | arn:sns:987654321:snsarn | InProgress    | 10.x.x.x/x   |
+|-------------|------------|-------------|-------------|-------------|--------------------------|--------------------------|---------------|------------|
+| vpc-xxxxxxx | 10.x.x.x/x | paGroup1    | vpn-xxxxxxx | vpn-xxxxxxy | arn:iam:987654321:iamarn | arn:sns:987654321:snsarn | InProgress    | 10.x.x.x/x |
 
 
 ##### HighPriorityQueue(or DeleteQueue)
+This is a FIFO Queue created during initialization of Transit account. All new Delete tasks and tasks related to Rebalance will be pushed on to this queue. All tasks in this queue will be processed before processing other tasks.
 
 ##### LowPriorityQueue(or CreateQueue)
+This is a FIFO Queue created during initialization of Transit account. All new create tasks which are not related to Rebalance will be pushed on to this task. All tasks in this queue will be processed after high priority queue is empty and after completion of Rebalance operation if it is in progress.
 
 ##### Transit State machine (AWS Stepfunction)
-
+Transit State machine is built using AWS Step functions. Transit State machine will be started by TransitDeciderLambda and makes sure that only one instance of Transit State machine is running at any point in time. Once started it fetches one Task at a time from HighPriorityQueue and process them till queue is empty. Once HighPriorityQueue is empty, it checks whether Rebalance is in progress by checking for a key-value pair in DynamoDB which indicates whehter Rebalance is in progress or not (Rebalance = Yes). If there is an ongoing Rebalance, Transit
 
 
 
@@ -167,7 +174,7 @@ This logical system takes care of automatically configuring VPN and managing res
 This logical system takes care of automatically configuring VPN at the "subscriber" side. Following are few tasks done by Subscriber system
 - Detect VPC creation
 - Gather information needed to configure VPN with PA group
-- Create VGW, CGW, IPSec configuration
+- Create VGW, CGW, IPSec VPN configuration
 - Notify transit system with VPN configuration information so that Transit system can complete VPN configuration
 - Detect VPN delete operation and trigger VPN delete operation from Transit system
 
@@ -184,25 +191,34 @@ This logical system takes care of automatically configuring VPN at the "subscrib
 8. Subscriber State machine
 
 ##### Subscriber SNS
+Subscriber SNS is an SNS created as part of Subscriber environment setup. Transit system communicates with subscruber system by sending notification to SubscriberSns. It is also connected to SubscriberDecider Lambda, so any new notification will trigger SubscriberDecider Lambda
 
 ##### CloudTrail and CloudTrailLambda
+CloudTrail logging will be enabled and configured to push logs to a new S3 bucket during the setup of Subscriber environment. CloudTrail pushes logs to the configured bucket every 5 minutes or so. Cloudtrail bucket is configured to trigger CloudTrailLambda which parses latest log file and look for any new "VPC Create" event and when it finds one, it creates a new Task and push that task to Subscriber SNS with action "DetectedCreateVpc" along with details about the VPC (VPC-ID, VPC-CIDR, etc.).
+
+CloudTrailLambda can also detect VPN delete operations and if the delete VPN was configured by the solution, it activates a chain of events by creating a Task in the Transit System which eventually removes VPN pair from PA Group as well as Subscribing AWS Account.
+
+NOTE 1: CloudTrail lambda can be easily modified to invoke configure vpn Task based on "Create Tag" event as well
+
+NOTE 2: Every VPC will be connected to each node associated PA-Server group using IPSec VPN. This two IPSec configuration (to Node1, Node2 of PA Group associated with that VPC) is considered as single logical VPN connection to the transit system. Due to that reason, detection of one of the VPN configuration delete operation at Subscriber VPC will trigger both VPN configurations
 
 ##### SubscriberDecider Lambda
+SubscriberDecider lambda gets invoked whenever there is a new Task pushed on to Subscriber SNS. It takes the task and pushes it into SubscriberQueue and starts Subscriber state machine if it is not running.
 
 ##### SubscriberVpcVpnTable (DynamoDB Table)
 | VpnId       | VpcId       | PaGroup    | PaNode  |
-| ----------- | ----------- | ---------- | ------- |
+|-------------|-------------|------------|---------|
 | vpn-xxxxxxx | vpc-xxxxxxx | PaGroup1   | N1      |
 | vpn-xxxxxxy | vpc-xxxxxxx | PaGroup1   | N2      |
 
 ##### SubscriberLocalDb (DynamoDB Table)
 | VpcId       | VpcCidr     | VgwId       | VgwAsn | PaGroup  | CgwN1       | CgwN2       | VpnN1       | VpnN2       |
-| ----------- | ----------- | ----------- | ------ | -------- | ----------- | ----------- | ----------- | ----------- |
+|-------------|-------------|-------------|--------|----------|-------------|-------------|-------------|-------------|
 | vpc-xxxxxxx | 10.x.x.x./x | vgw-xxxxxxx | 64827  | PaGroup1 | cgw-xxxxxxx | cgw-xxxxxxy | vpn-xxxxxxx | vpn-xxxxxxy |
 
 ##### SubscriberConfig (DynamoDB Table)
 | Property                  | Value                                                                         |
-| ------------------------- | ----------------------------------------------------------------------------- |
+|---------------------------|-------------------------------------------------------------------------------|
 | TransitSNSTopicArn        | arn:aws:sns:us-east-1:12345667489:transitSns-arn                              |
 | SubscriberAssumeRoleArn   | arn:aws:iam::987654321:role/SubscriberAssumeRole-arn                          |
 | SubscriberQueueUrl        | https://sqs.us-east-1.amazonaws.com/987654321/subscriberFifoQueue.fifo        |
@@ -215,7 +231,87 @@ This logical system takes care of automatically configuring VPN at the "subscrib
 | TransitAssumeRoleArn      | arn:aws:iam::12345667489:role/TransitAssumeRole                               |
 
 ##### SubscriberQueue (DynamoDB Table)
+This is a FIFO Queue created during initialization of Subscriber account. New tasks that need to be handled by Subscriber State machine should be pushed on to this Queue.
 
 ##### Subscriber State machine
+Subscriber State machine is built using AWS Step functions. Subscriber State machine will be started by SubscriberDeciderLambda and makes sure that only one instance of Subscriber State machine is running at any point in time. Once started it fetches one Task at a time from SubscriberQueue and process it till the Queue is empty this is done by executing "FetchFromSubscriberQueueLambda". Based on the 'Action' it will trigger that specific action related Lambda Function (ie., CreateVpc, ConfigureSubscribingVpcVpn,VpnConfigured etc.,). Following are the list of Tasks handled by Subscriber State machine and corresponding lambda function which gets invoked.
+
+| Action                      | Lambda                           |
+|-----------------------------|----------------------------------|
+| DetectedCreateVpc           | CreateVpcLambda                  |
+| ConfigureSubscribingVpcVpn  | ConfigureSubscribingVpcVpnLambda |
+| VpnConfigured               | VpnConfiguredLambda              |
+| VpnFailed                   | VpnFailedLambda                  |
+| DetectedDeleteVpnConnection | DeleteVpnConnectionLambda        |
+| DeleteVpnConnection         | <This is probably deleted?>      |
+**Review Above Table**
+
+NOTE: Details about what these lambda function does can be found in file lambdafunctions-description.md
 
 ### Rebalance mechanism
+
+Rebalance is basically adjusting the PaGropus based on its capacity and available VPCs
+In Rebalance mechanism we move VPN connections from one PaGroup(lowest capacity) to other PaGroup(near highest capacity), so that we can remove the unused PaGroups hence reduce the cost
+Rebalance mechanism can be triggered maually by running the initializeRebalanaceLambda function or can be run as cron job
+
+- When Rebalance is in progress no other create operations get precedence, Rebalance operations will be pushed to delete queue (HighPriorityQueue) based on the "Rebalance" key in the json event, if Rebalance==True it will be send to delete queue gets high priority over Create operations
+- RebalancePaGropusLambda function is the heart of the Rebalance Mechanism, it performs the rebalance functionality based on the "RebalanceInProgress" and "RebalanceStatus" values present in the TransitCongfig table, these two values are put into TransitConfig table by initializeRebalanceLambda function
+- The logic is explained as below
+
+```
+If Config.RebalanceStatus is Done:
+    "Previous rebalance completed successfully or Running for the first time"
+    from_to =  panGeneric.Rebalance()
+    if not from_to:
+        # Set config.rebalance to False
+        # Rebalance completed
+        exit
+    # now we have a from_to to work on and move VPC
+    vpcInfo = getVpcInfo(from_to["FromPaGroup"])
+    config.rebalance_status = {
+       "FromPaGroup": from_to["FromPaGroup"]['PaGroupName'],
+       "ToPaGroupName" : from_to["ToPaGroup"]['PaGroupName'],
+       "VpcId":"vpcInfo['VpcId']"
+       "CreateStatus" : "Pending"
+       "DeleteStatus" : "InProgress"
+    }
+    create DeleteVpn task and send to SSns
+    Exit
+        
+             
+else:
+    "here implies rebalance in progress and Create / Delete in progress"
+    previousTaskStatus = Config.RebalanceStatus
+    if previousTaskStatus.DeleteStatus == "InProgress":
+        "Previous task was delete task"
+        "Now Check whether delete has completed"
+        status = checkVpcTableForEntry(previousTaskStatus.VpcId)
+        if status is not None:
+            "Previous delete operation didn't complete, so skip and exit"
+            exit
+        else:
+           "Previous delete operation completed, so create, create-task"
+            config.rebalance_status['CreateStatus'] = "InProgress"
+            config.rebalance_status['DeleteStatus'] = "Completed"
+            Update Config table
+            create CreateVpnTask and send to SSns
+            and Exit
+    elif previousTaskStatus.CreateStatus == "InProgress":
+            "Previous task was create task"
+            "Now check whether create task completed"
+            status = checkVpcTableForEntry(previousTaskStatus.VpcId)
+            if status is None:
+                "Previous create operation didn't complete"
+                "Exit and wait for that to complete"
+                Exit
+            Else
+                "Now we found an entry on VPC table lets check whether it the configuration we expect"
+                if status.PaGroupName == config.rebalance_status.ToPaGroupName:
+                    "If they are same, it means configuration is completed and accurate"
+                    config.rebalance_status = None
+                    Return to Transit task handler (to continue rebalance operation)
+                Else:
+                    Something terrible happened? Unknown status
+                    Print error and exit
+
+```

@@ -1,7 +1,7 @@
 # Rebuild Transit and Subscriber Environments
 
 This document helps in rebuilding the Transit and Subscriber environments.
-Rebuilding of setup involves destroying of existing environments and setting it up from scratch.
+The rebuilding of setup involves destroying of existing environments and setting it up from scratch.
 Follow the below process to rebuild the environment quickly.
 
 ## Destroy Subscriber Environment

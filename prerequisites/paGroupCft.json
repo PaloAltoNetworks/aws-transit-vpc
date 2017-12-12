@@ -2,11 +2,6 @@
     "AWSTemplateFormatVersion" : "2010-09-09",
     "Description" : "Template to create PA group creation",
     "Parameters" : {
-        "paloAltoAmiId" : {
-            "Description" : "AMI ID to use to spinup PA (BYOL)",
-            "Type" : "String",
-            "Default": "ami-dc28c6a6"
-        },
         "paGroupName" : {
             "Description" : "PA Group name",
             "Type" : "String",
@@ -23,7 +18,8 @@
         "paloAltoInstanceType" : {
             "Description" : "Instance Type for PA servers",
             "Type" : "String",
-            "Default": "t2.large"
+            "Default": "c4.xlarge",
+            "AllowedValues": ["m4.xlarge", "m4.2xlarge", "m4.4xlarge", "m3.xlarge", "m3.2xlarge", "c4.xlarge", "c4.2xlarge", "c4.4xlarge", "c4.8xlarge", "c3.xlarge", "c3.2xlarge", "c3.4xlarge", "c3.8xlarge"]
         },
         "sshKey" : {
             "Description" : "SSH key to associate with PA Server",
@@ -83,11 +79,29 @@
             "Default": "pa-bootstrap-jayan-01"
         }
    },
+   "Mappings": {
+        "PAVMAMI": {
+            "us-east-1": {"AMI": "ami-34ca984f"},
+            "us-west-2": {"AMI": "ami-7e8a9107"},
+            "us-east-2": {"AMI": "ami-765e7e13"},
+            "us-west-1": {"AMI": "ami-be88a1de"},
+            "ca-central-1": {"AMI": "ami-0504bb61"},
+            "eu-west-1": {"AMI": "ami-1c28c065"},
+            "eu-west-2": {"AMI": "ami-c76d7ca3"},
+            "eu-central-1": {"AMI": "ami-44f25e2b"},
+            "ap-southeast-1": {"AMI": "ami-0994066a"},
+            "ap-southeast-2": {"AMI": "ami-2ed3cc4d"},
+            "ap-northeast-1": {"AMI": "ami-8705e6e1"},
+            "ap-northeast-2": {"AMI": "ami-48bc6526"},
+            "ap-south-1": {"AMI": "ami-38fd8557"},
+            "sa-east-1": {"AMI": "ami-38641354"}
+        }
+    },
   "Resources" : {
     "paGroupNode1" : {
       "Type" : "AWS::EC2::Instance",
       "Properties" : {
-        "ImageId" : { "Ref" : "paloAltoAmiId" },
+        "ImageId" : { "Fn::FindInMap" : [ "PAVMAMI", { "Ref" : "AWS::Region" }, "AMI"]},
         "InstanceType" : { "Ref" : "paloAltoInstanceType"},
         "KeyName" : { "Ref" : "sshKey" },
         "IamInstanceProfile" : { "Ref" : "paGroupInstanceProfile" },
@@ -132,7 +146,7 @@
     "paGroupNode2" : {
       "Type" : "AWS::EC2::Instance",
       "Properties" : {
-        "ImageId" : { "Ref" : "paloAltoAmiId" },
+        "ImageId" : { "Fn::FindInMap" : [ "PAVMAMI", { "Ref" : "AWS::Region" }, "AMI"]},
         "InstanceType" : { "Ref" : "paloAltoInstanceType"},
         "KeyName" : { "Ref" : "sshKey" },
         "IamInstanceProfile" : { "Ref" : "paGroupInstanceProfile" },

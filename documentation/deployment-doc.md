@@ -9,7 +9,7 @@ Clone the "palo-alto-scripts" repository for required files to setup the Transit
 ### S3 Bucket for PA Bootstrapping
 
 S3 bucket is required to perform the Palo Alto bootstrapping function.
-Find the "pa_bootstrap.zip" file in "prerequisites" directory of cloned repository, unzip it and upload them to the bootstrapping S3 bucket.
+Find the "pa_bootstrap.zip" file in "prerequisites" directory of the cloned repository, unzip it and upload them to the bootstrapping S3 bucket.
 
 1. This bucket contains the following folders, which accounts for successful bootstrapping.
 ![alt text](images/s3_bucket_folders.png "S3 bucket folders")
@@ -17,15 +17,16 @@ Find the "pa_bootstrap.zip" file in "prerequisites" directory of cloned reposito
 2. The config folder contains the “bootstrap.xml” file and the “init-cfg.txt” file:
 ![alt text](images/config_folder.png "config folder")
 
-3. The “license” file contains a file named “authcodes” with the authcode license  for the Palo Alto VM.
-4. The “content” and “software” folders has empty dummy files created in them.
+3. The “license” file contains a file named “authcodes” with the authcode license for the Palo Alto VM.
+4. The “content” and “software” folders have empty dummy files created in them.
 
 ### S3 Bucket for Lambda Functions and CloudFormation Templates
 
-An S3 bucket is required to store the "lambda.zip" file that helps create all the necessary Lambda functions. It will also have the CFT to create PAGroups and 'availableVPNCidr.txt' file that contains available CIDR ranges for creating VPN.
+An S3 bucket is required to store the "lambda.zip" file that helps create all the necessary Lambda functions. It will also have the CFT to create PAGroups Servers (paGroupCft.json)
 
-Find the "availableVPNCidr.txt" and "paGroupCFT.json" files under "cfts" directory. Add the contents of "lambda" directory to "lambda.zip" then upload the files to S3 bucket. 'Lambda.zip' file is available in 'prerequisites' directory.
+Find the "paGroupCFT.json" files under "cfts" directory. Add the contents of "lambda" directory to "lambda.zip" (do not include lambda directory) then upload the files to S3 bucket.
 
+- paGroupCft.json: for testing purpose we are using Palo Alto VM-Series BYOL AMI and c4.xlarge instanceType. You can change the Mappings section in CFT to use PayAsYouGo bundle AMI.
 
 ## Create a Transit Account Stack
 
@@ -40,7 +41,7 @@ Steps to launch the “initializeTransitAccount” stack
 2. Click on Create Stack
 ![alt text](images/create_stack.png "Create stack")
 
-3. Next, under "Choose a template", click on the “Upload a template to Amazon S3” radio button, and browse for the CFT from your local computer.
+3. Next, under "Choose a template", click on the “Upload a template to Amazon S3” radio button, and browse for the CFT from your local computer (initializeTransitAccount.json).
 ![alt text](images/upload_cft.png "Upload CFT")
 
 4. Next, enter a unique name for your stack.
@@ -51,7 +52,7 @@ Steps to launch the “initializeTransitAccount” stack
 6. Below screenshot indicates the Required Parameters:
 ![alt text](images/transit_required_parameters.png "Transit required parameters")
 
-  a. For the parameter “PaGroupTemplateUrl”, indicate the Palo Alto CloudFormation template URL in the dialog box. This URL should indicate the path to the CFT, which in this case has been stored in an S3 bucket.
+  a. For the parameter “PaGroupTemplateUrl”, indicates the Palo Alto CloudFormation template URL in the dialog box. This URL should indicate the path to the PaGroupCFT (paGroupCft.json), which in this case has been stored in an S3 bucket (URL format: https://s3.amazonaws.com/<bucket-name>/paGroupCft.json)
 
   b. In the “DeLicenseAPIKey” parameter dialog box, enter the PA license deactivation API Key.
 
@@ -65,9 +66,9 @@ Steps to launch the “initializeTransitAccount” stack
 
   g. For the parameter “VpnConfigBucketName”, enter a unique name that will be used to create an S3 bucket which will be used to store the VPN configuration files.
 
-  h. Next, for the “sshKey” parameter, select the SSH Key from the dropdown, to be used to launch the PA servers.
+  h. Next, for the “sshKey” parameter, select the SSH Key from the drop-down, to be used to launch the PA servers.
 
-  i. For the parameters “az1” and “az2”, select the two availability zones from the dropdowns, to be used to create the Transit VPC subnets and in turn launch the PA servers into.
+  i. For the parameters “az1” and “az2”, select the two availability zones from the dropdowns, to be used to create the Transit VPC subnets and in turn, launch the PA servers into.
 
 7. Below screenshot indicates the parameters with default values.
 ![alt text](images/transit_default_parameters.png "Transit default parameters")
@@ -84,11 +85,10 @@ Steps to launch the “initializeTransitAccount” stack
 
   f. For the “trustedSource” parameter, enter a Trusted IP address to allow access to the NAT instance.
 
-  g. For the “NatInstanceAmi” parameter, enter the AMI ID to be used to launch the NAT instance. This NAT instance will be used to connect to the PA Mgmt interface.
 
-  h. In the “NatInstanceType” parameter dialog box, specify the instance type to use for the NAT instance.
+  g. In the “NatInstanceType” parameter dialog box, specify the instance type to use for the NAT instance.
 
-8. Then click on “Next”.
+8. Then click “Next”.
 
 9. Optionally, enter tags for your stack and then click on “Next”.
 ![alt text](images/stack_tags.png "Tags")
@@ -109,9 +109,9 @@ Clone the "palo-alto-scripts" repository for required files to setup the Subscri
 
 ### S3 bucket to store the Lambda functions zip and Subscriber VPC CloudFormation template:
 
-An S3 bucket is required to store the "lambda.zip" file that helps create all the necessary Lambda functions. It will also have the CFT to create Subscriber VPC.
+An S3 bucket is required to store the "lambda.zip" file that helps create all the necessary Lambda functions. It will also have the CFT to create Subscriber VPC (subscriberVpcCft.json)
 
-Find the "subscriberVpcCFT.json" file under "cfts" directory, add the contents of "lambda" directory to lambda.zip and upload these files into S3 bucket. 'Lambda.zip' file is available in 'prerequisites' directory.
+Find the "subscriberVpcCFT.json" file under "cfts" directory, add the contents of "lambda" directory to lambda.zip and upload these files(subscriberVpcCft.json and lambda.zip) into the S3 bucket. 'lambda.zip' file is available in 'prerequisites' directory.
 
 ## Create a Subscriber Account Stack:
 
@@ -126,7 +126,7 @@ Steps to launch the “initializeSubscriberAccount” stack
 2. Click on Create Stack.
 ![alt text](images/create_stack.png "Create stack")
 
-3. Next, under "Choose a template", click on the “Upload a template to Amazon S3” radio button, and browse for the CFT from your local computer.
+3. Next, under "Choose a template", click on the “Upload a template to Amazon S3” radio button, and browse for the CFT from your local computer (initializeSubscriberAccount.json).
 ![alt text](images/upload_cft.png "Upload CFT")
 
 4. Next, enter a unique name for your stack.
@@ -143,11 +143,12 @@ Steps to launch the “initializeSubscriberAccount” stack
 
   c. Provide the "TransitAWSAccountNumber".
 
-  d. Provide "LambdaFunctionsBucketName" which is having lamda.zip file in Subscriber account.
+  d. Provide "LambdaFunctionsBucketName" which is having lambda.zip file in Subscriber account.
 
-  e. Next, for the “sshKey” parameter, select the SSH Key from the dropdown, to be used to launch the PA servers.
+  e. Next, for the “sshKey” parameter, select the SSH Key from the drop-down, to be used to launch the PA servers.
 
-  f. For the parameters “az1” and “az2”, select the two availability zones from the dropdowns, to be used to create the Transit VPC subnets and in turn launch the PA servers into.
+  f. For the parameters “az1” and “az2”, select the two availability zones from the dropdowns, to be used to create the Transit VPC subnets and in turn, launch the PA servers into.
+  g. Provide "CloudTrailS3BucketName". Creates a S3-Bucket Name for storing the CloudTrails logs. NOTE: Dont USE Capital letters, and S3 bucket names are globally unique, regardless of the AWS Region and AWS Account. So please prepend/append your aws account number to the name of bucket to avoid stack creation failure.
 
 7. Below screenshot indicates the parameters with default values.
 ![alt text](images/subscriber_default_parameters.png "Default parameters")
@@ -156,9 +157,8 @@ Steps to launch the “initializeSubscriberAccount” stack
 
     b. For the “LambdaZipFile” parameter, enter the name of Lambda code zip file name which is stored in the LambdaFunctionsBucketName, whose name is indicated in the required parameters.
 
-    c. Provide "CloudTrailS3BucketName". Creates a S3-Bucket Name for storing the CloudTrails logs. NOTE: Dont USE Capital letters, and S3 bucket names are globally unique, regardless of the AWS Region and AWS Account. So please prepend/append your aws account number to the name of bucket to avoid stack creation failure.
-
-    d. If "LaunchSubscriberVpc" parameter is set to Yes then below parameters will be used to create a new subscriber VPC
+    c. If "LaunchSubscriberVpc" parameter is set to Yes then below parameters will be used to create a new subscriber VPC
+      This CFT will create one-VPC, 4-subnets: 2-public and 2-private subnets, One-NAT instance launched to test the Routing between VPCs
       * "VpcCidrRange"
       * "SubnetCidr1"
       * "SubnetCidr2"
@@ -166,7 +166,7 @@ Steps to launch the “initializeSubscriberAccount” stack
       * "SubnetCidr4"
     These parameters have default values that can be modified if required.
 
-8. Then click on “Next”.
+8. Then click “Next”.
 
 9. Optionally, enter tags for your stack and then click on “Next”.
     ![alt text](images/stack_tags.png "Tags")
@@ -184,7 +184,7 @@ Any number of subscriber VPCs can be launched but, make sure that provided VPC a
 
 This stack creates the subscriber VPC.
 
-For the Transit account CFT, clone the “palo-alto-scripts” repo from AWS Code Commit. Under the “cfts”, use the "subscriberVpcCFT.json” CFT to launch the Subscriber VPC stack.
+For the Transit account CFT, clone the “palo-alto-scripts” repo from AWS Code Commit. Under the “cfts”, use the "subscriberVpcCFT.json" CFT to launch the Subscriber VPC stack.
 
 Steps to launch the "subscriberVpcCFT" stack:
 
@@ -199,14 +199,13 @@ Steps to launch the "subscriberVpcCFT" stack:
 4. Next, enter a unique name for your stack.
 ![alt text](images/stack_name.png "Stack name")
 
-5. Provide the parameters to the stack. Make sure that VPC and Subnet ranges are in valid.
+5. Provide the parameters for the stack. Make sure that VPC and Subnet ranges are valid.
 
-6. Then click on “Next”.
+6. Then click “Next”.
 
 7. Optionally, enter tags for your stack and then click on “Next”.
 ![alt text](images/stack_tags.png "Tags")
 
 8. Review the details of the stack and then on the same page, under "Capabilities", check the “I acknowledge that AWS CloudFormation might create IAM resources with custom names” option.
 
-9. Then click on “Create”.
-
+9. Then click on “Create” and wiat for the stack to be completed.

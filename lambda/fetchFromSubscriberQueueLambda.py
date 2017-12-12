@@ -6,13 +6,6 @@ from commonLambdaFunctions import fetchFromQueue, fetchFromSubscriberConfigTable
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-'''
-#Reading From Environment varialbes
-subscriberQueueUrl=os.environ['subscriberQueueUrl']
-'''
-#subscriber_queue_url="https://sqs.us-east-1.amazonaws.com/961190221792/kumar_subscriber_queue"
-
-#subscriberConfigTable="SubscriberConfig"
 subscriberConfigTable = os.environ['subscriberConfigTable']
 region = os.environ['Region']
 

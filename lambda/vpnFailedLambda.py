@@ -15,10 +15,10 @@ logger.setLevel(logging.INFO)
 
 subscriberLocalDb = os.environ['subscriberLocalDb']
 region = os.environ['Region']
-#subscriberLocalDb='SubscriberLocalDb'
-#region = 'us-east-1'
 
-def updateLocalDb(vpcId):
+def deleteItemFromLocalDb(vpcId):
+    """Deletes item from SubscirberLocalDb by specifying the VpcId primary key
+    """
 	try:
 		dynamodb = boto3.resource('dynamodb',region_name=region)
 		table = dynamodb.Table(subscriberLocalDb)
@@ -32,7 +32,7 @@ def updateLocalDb(vpcId):
 def lambda_handler(event,context):
 	try:
 		#Delete entry from LocalDb 
-		updateLocalDb(event['VpcId'])
+		deleteItemFromLocalDb(event['VpcId'])
 		#Update VPC tags with
 		#Key				Value
 		#ConfigStatus 		Vpn-Failed

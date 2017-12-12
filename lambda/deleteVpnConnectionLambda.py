@@ -15,8 +15,6 @@ Input:
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-#subscriberConfigTable = 'SubscriberConfig'
-#region = 'us-east-1'
 subscriberConfigTable = os.environ['subscriberConfigTable']
 region = os.environ['Region']
 subscribingVpcTag = 'subscribingVpc'
@@ -25,6 +23,8 @@ transitSnsTopicArn=os.environ['transitSnsTopicArn']
 transitAssumeRoleArn=os.environ['transitAssumeRoleArn']
 
 def deleteItemFromLocalDb(tableName, vpcId):
+    """Deletes an Item from SubscriberLocalDb table with specified VpcId key
+    """
     try:
         dynamodb = boto3.resource('dynamodb',region_name=region)
         table = dynamodb.Table(tableName)
@@ -40,6 +40,8 @@ def deleteItemFromLocalDb(tableName, vpcId):
         logger.error("Deleting of Item with vpc-id: {}, Error: {}".format(vpcId,str(e)))
 
 def deleteItemFromVpcVpnTable(tableName, vpnId):
+    """Deletes an Item from VpcVpnTable with specified VpnId key
+    """
     try:
         dynamodb = boto3.resource('dynamodb',region_name=region)
         table = dynamodb.Table(tableName)
@@ -49,6 +51,8 @@ def deleteItemFromVpcVpnTable(tableName, vpnId):
         logger.error("Error from deleteItemFromVpcVpnTable is failed, Error: {}".format(str(e)))
 
 def isSubscribingVpcVpn(tableName,vpnId,awsRegion):
+    """Verifies whether the VPN connection deleted was associated with Subscribing VPC, if yes, returns VpcId else retruns False
+    """
     try:
         dynamodb = boto3.resource('dynamodb',region_name=region)
         table = dynamodb.Table(tableName)
@@ -68,6 +72,8 @@ def isSubscribingVpcVpn(tableName,vpnId,awsRegion):
         logger.error("Error from isSubscribingVpcVpn is failed, Error: {}".format(str(e)))
         
 def deleteVpn(vpnId,region):
+    """Deletes the VPN Connection associated with the Subscribing VPC
+    """
     try:
         ec2_conn = boto3.client('ec2',region_name=region)
         ec2_conn.delete_vpn_connection(VpnConnectionId=vpnId)
@@ -77,6 +83,8 @@ def deleteVpn(vpnId,region):
         pass
 
 def getCgwId(vpnId, awsRegion):
+    """Returns CGW id, if the customer gateway is already present/created
+    """
     try:
         ec2_conn = boto3.client('ec2',region_name=awsRegion)
         response = ec2_conn.describe_vpn_connections(VpnConnectionIds=[vpnId])['VpnConnections']
@@ -87,6 +95,8 @@ def getCgwId(vpnId, awsRegion):
         pass
 
 def deleteCgw(cgwId, awsRegion):
+    """Deletes the CGW
+    """
     try:
         ec2_conn = boto3.client('ec2',region_name=awsRegion)
         ec2_conn.delete_customer_gateway(CustomerGatewayId=cgwId)
@@ -96,6 +106,8 @@ def deleteCgw(cgwId, awsRegion):
         pass
 
 def updateTags(awsRegion, vpcId):
+    """Updates the tags of VPC with VPN-Deleted, VPN-Removed for keys ConfigStatus and ConfigReason respectively
+    """
     try:
         ec2_conn =boto3.client('ec2',region_name=awsRegion)
         tags=[

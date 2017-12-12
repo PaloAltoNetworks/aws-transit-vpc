@@ -1,8 +1,9 @@
-from netaddr import IPNetwork
 import cfnresponse
 import boto3
 
 def updateSubscriberConfig(tableName, data):
+    """Updates the SubscriberConfig table with attributes Property and Value
+    """
     try:
         dynamodb = boto3.resource('dynamodb')
         table=dynamodb.Table(tableName)

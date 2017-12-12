@@ -5,18 +5,15 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# AWS Services Connections
-#sqsConnection=boto3.client('sqs')
-#snsConnection=boto3.client('sns')
-#s3Connection=boto3.client('s3')
 dynamodb=boto3.resource('dynamodb')
 
-#Global variable definitions
 
 transitConfig = {}
 subscriberConfig = {}
 
 def fetchFromTransitConfigTable(transitConfigTable=None):
+    """Get the data from TransitConfig table and returns it as dictionary
+    """
     try:
         table = dynamodb.Table(transitConfigTable)
         response=table.scan()
@@ -27,6 +24,8 @@ def fetchFromTransitConfigTable(transitConfigTable=None):
         logger.info("Fetching From Config talbe is Failed, Error: {}".format(str(e)))
         return False
 def fetchFromSubscriberConfigTable(subscriberConfigTable=None):
+    """Get the data from SubscriberConfig table and retruns it as dictionary
+    """
     try:
         table = dynamodb.Table(subscriberConfigTable)
         response=table.scan()
@@ -37,6 +36,8 @@ def fetchFromSubscriberConfigTable(subscriberConfigTable=None):
         logger.info("Fetching From Config talbe is Failed, Error: {}".format(str(e)))
         return False
 def sendToQueue(sqsQueueUrl,messageBody,messageGroupId):
+    """Sends message to the SQS Queue
+    """
     try:
         sqsConnection=boto3.client('sqs',region_name=sqsQueueUrl.split('.')[1])
         sqsConnection.send_message(QueueUrl=sqsQueueUrl,MessageBody=messageBody,MessageGroupId=messageGroupId)
@@ -46,6 +47,8 @@ def sendToQueue(sqsQueueUrl,messageBody,messageGroupId):
         #return False
 
 def publishToSns(snsTopicArn, message, roleArn=None):
+    """Publish message to SNS Topic
+    """
     try:
         snsConnection=boto3.client('sns',region_name=snsTopicArn.split(':')[3])
         if roleArn:
@@ -61,6 +64,8 @@ def publishToSns(snsTopicArn, message, roleArn=None):
         #return False
 		
 def fetchFromQueue(sqsQueueUrl):
+    """Get one message from SQS Queue and return it
+    """
     try:
         sqsConnection=boto3.client('sqs',region_name=sqsQueueUrl.split('.')[1])
         receive_message=sqsConnection.receive_message(QueueUrl=sqsQueueUrl,MaxNumberOfMessages=1)
@@ -73,6 +78,8 @@ def fetchFromQueue(sqsQueueUrl):
         logger.error("Fetching from {} Queue is Failed, Error {}".format(sqsQueueUrl,str(e)))
         #return False
 def isVgwAttachedToVpc(vpcId,awsRegion):
+    """Verifies whether the VPC has any VGW attached, return either VgwId or False
+    """
     try:
         ec2_conn = boto3.client('ec2', region_name=awsRegion)
         filters = [{'Name':'attachment.vpc-id','Values':[vpcId]}]
@@ -86,14 +93,22 @@ def isVgwAttachedToVpc(vpcId,awsRegion):
         logger.error("Error in isVgwAttachedToVpc(), Error: {}".format(str(e)))
         return False
 def checkCgw(awsRegion, n1Eip, n2Eip):
+    """Verifies whether the CGWs are already created or not, returns either a list of cgwIds or False
+    """
     try:
         cgwIds = []
         ec2_conn = boto3.client('ec2', region_name=awsRegion)
-        filters = [{'Name':'ip-address','Values':[n1Eip, n2Eip]}]
+        filters = [{'Name':'ip-address','Values':[n1Eip]}]
         response = ec2_conn.describe_customer_gateways(Filters=filters)['CustomerGateways']
         if response:
             for cgw in response:
                 cgwIds.append(cgw['CustomerGatewayId'])
+        filters = [{'Name':'ip-address','Values':[n2Eip]}]
+        response = ec2_conn.describe_customer_gateways(Filters=filters)['CustomerGateways']
+        if response:
+            for cgw in response:
+                cgwIds.append(cgw['CustomerGatewayId'])
+        if cgwIds:
             return cgwIds
         else:
             return False
@@ -102,6 +117,8 @@ def checkCgw(awsRegion, n1Eip, n2Eip):
         return False
 
 def createVgwAttachToVpc(vpcId,vgwAsn,region,paGroup):
+    """Creates a VGW and attach it to the VPC, returns VgwId
+    """
     try:
         tags=[{'Key':'Name','Value':paGroup}]
         import time
@@ -124,6 +141,8 @@ def createVgwAttachToVpc(vpcId,vgwAsn,region,paGroup):
         return False
 
 def createCgw(cgwIp,cgwAsn,region,tag):
+    """Creates CGW and returns CgwId
+    """
     try: 
         tags=[{'Key':'Name','Value':tag}]
         ec2Connection=boto3.client('ec2',region_name=region)
@@ -134,6 +153,8 @@ def createCgw(cgwIp,cgwAsn,region,tag):
         logger.error("Error in createCgw(), Error: {}".format(str(e)))
         return False
 def uploadObjectToS3(vpnConfiguration, bucketName,assumeRoleArn=None):
+    """Uploads an object(VPN Conf file) to S3 bucket
+    """
     try:
         s3Connection=boto3.resource('s3')
         fileName=vpnConfiguration['VpnConnection']['VpnConnectionId']+'.xml'
@@ -152,6 +173,8 @@ def uploadObjectToS3(vpnConfiguration, bucketName,assumeRoleArn=None):
         return False
 		
 def getVpnConfFromS3(vpnId,region,bucketName):
+    """Downloads the VPN configuration file from S3 bucket
+    """
     try:
         s3Connection=boto3.resource('s3')
         fileName=vpnId+'.xml'
@@ -163,6 +186,8 @@ def getVpnConfFromS3(vpnId,region,bucketName):
         return False
 	
 def createVpnConnectionUploadToS3(region,vgwId,cgwId,tunnelOneCidr,tunnelTwoCidr,tag,bucketName,assumeRoleArn=None):
+    """Creates VPN connection and upload the VPN configuration to the S3 bucket
+    """
     try:
         tags=[{'Key':'Name','Value':tag}]
         ec2Connection=boto3.client('ec2',region_name=region)

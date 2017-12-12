@@ -21,13 +21,12 @@ Output:
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-#transitConfigTable = "TransitConfig"
-#region = 'us-east-1'
-
 transitConfigTable = os.environ['transitConfigTable']
 region = os.environ['Region']
 
 def updateConfigDb(data):
+    """Updates TransitConfig tablw with Property:StackError
+    """
     try:
 
         item = {'Property':'StackError', 'Value':'Error While Creating Stack {}'.format(data)}
@@ -39,6 +38,8 @@ def updateConfigDb(data):
         logger.error("Error from updateConfigDb, Error: {}".format(str(e)))
 
 def updatePaGroup(tableName, data, awsRegion):
+    """Updates Transit PaGroupInfo table with attributes, N1Mgmt, N2Mgmt, N1Eip, N2Eip, N1Pip, N2Pip, StackRegion by specifying the PaGroupName primary key
+    """
     try:
 
         dynamodb=boto3.resource('dynamodb',region_name=region)
@@ -49,6 +50,8 @@ def updatePaGroup(tableName, data, awsRegion):
         logger.error("Error from updatePaGroup, Faild to update table with: {}, Error: {}".format(data,str(e)))
 
 def configurePaPeers(tableName,apiKey, newGroup):
+    """Configures the Peering between existing PaGroups
+    """
     try:
         dynamodb = boto3.resource('dynamodb',region_name=region)
         table = dynamodb.Table(tableName)

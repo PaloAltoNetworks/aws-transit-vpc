@@ -22,10 +22,10 @@ transitConfigTable = os.environ['transitConfigTable']
 region = os.environ['Region']
 
 dynamodb = boto3.resource('dynamodb', region_name=region)
-#transitConfigTable = "TransitConfig"
-#transitBgpTunnelIpPoolTable = "TransitBgpTunnelIpPool"
 
 def updateBgpTunnelIpPool(bgpTableName,ipSegment):
+    """Updates the Transit BgpTunnelIpPool table attributes Available=YES by specifying the IpSegment primary key
+    """
     try:
         table=dynamodb.Table(bgpTableName)
         #Update BgpTunnelIpPool table Attribute "Available"="YES"
@@ -35,6 +35,8 @@ def updateBgpTunnelIpPool(bgpTableName,ipSegment):
         logger.error("Error from updateBgpTunnelIpPool(), Error: {}".format(str(e)))
         
 def updatePaGroup(paGroupTableName,paGroupName):
+    """Updates the Transit PaGroupInfo table attributes InUse=YES and  VpcCount value decrement by 1 (VpcCount=VpcCount-1) by specifying the PaGroupName primary key
+    """
     try:
         table=dynamodb.Table(paGroupTableName)
         table.update_item(Key={'PaGroupName':paGroupName},AttributeUpdates={'InUse':{'Value':'YES','Action':'PUT'},'VpcCount':{'Value':-1,'Action':'ADD'}})

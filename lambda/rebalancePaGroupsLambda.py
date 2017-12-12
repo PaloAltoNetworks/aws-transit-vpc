@@ -15,6 +15,8 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 def updateTransitConfig(tableName, data):
+    """Updates the TransitConfig table with RebalanceStatus
+    """
     try:
         dynamodb = boto3.resource('dynamodb', region_name=region)
         table = dynamodb.Table(tableName)
@@ -24,6 +26,8 @@ def updateTransitConfig(tableName, data):
         logger.error('updateTransitConfig() is Failed, Error: {}'.format(str(e)))
 
 def getSubscriberDataFromVpcTable(tableName, fromPaGroupName):
+    """Returns an item from Transit VpcTable by filtering the table with attribute PaGroupName
+    """
     try:
         dynamodb = boto3.resource('dynamodb', region_name=region)
         table = dynamodb.Table(tableName)
@@ -37,6 +41,8 @@ def getSubscriberDataFromVpcTable(tableName, fromPaGroupName):
         logger.error("Error from getSubscriberDataFromVpcTable), Error: {}".format(str(e)))
 
 def checkVpcIdInVpcTable(tableName, vpcId):
+    """Returns an Item from Transit VpcTable by querying the table with VpcId
+    """
     try:
         dynamodb = boto3.resource('dynamodb', region_name=region)
         table = dynamodb.Table(tableName)
@@ -46,6 +52,8 @@ def checkVpcIdInVpcTable(tableName, vpcId):
         logger.error("Erro from checkVpcIdInVpcTable(), Error: {}".format(str(e)))
 
 def getInUsePaGroups(tableName, maxCount):
+    """Returns list of PaGroups which are InUse==YES 
+    """
     try:
         dynamodb = boto3.resource('dynamodb', region_name=region)
         table = dynamodb.Table(tableName)

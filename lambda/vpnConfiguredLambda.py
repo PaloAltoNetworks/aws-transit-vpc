@@ -17,6 +17,8 @@ region = os.environ['Region']
 #region = "us-east-1"
 
 def updateLocalDb(vpcId):
+    """Updates the SubscriberLocalDb attributes VpnStatus=Configured by specifying the VpcId primary key
+    """
     try:
         dynamodb = boto3.resource('dynamodb',region_name=region)
         table = dynamodb.Table(subscriberLocalDb)

@@ -12,8 +12,7 @@
     "Parameters" : {
         "PaGroupTemplateUrl": {
             "Description" : "Palo Alto Cloudformation Template url",
-            "Type" : "String",
-            "Default": "https://s3.amazonaws.com/pa-cft-jayan-01/transit_pa_group.json"
+            "Type" : "String"
         },
         "DeLicenseApiKey": {
             "Description" : "PA license deactivation API Key",
@@ -36,12 +35,11 @@
           "Type": "String"
         },
         "VpnConfigBucketName": {
-          "Description": "Creates a S3-bucket for VPN Configuration files. NOTE: Do not use Capitals and S3 bucket names are globally unique, regardless of the AWS Region and AWS Account. So please prepend/append your aws account number to the name of bucket to avoid stack creation failure",
-          "Type": "String",
-          "Default": "palo-alto-transit-vpn-config-bucket"
+          "Description": "Creates a S3-bucket for VPN Configuration files. NOTE: S3 bucket names are globally unique, regardless of the AWS Region and AWS Account. So please prepend/append your aws account number to the name of bucket to avoid stack creation failure",
+          "Type": "String"
         },
         "SubscriberAWSAccountNumber": {
-          "Description": "Subscriber AWS Account number(s) required for Assume Role, Provide a valid 12-digit AWS Account Number, Please provide comma separated account numbers if you have morethan one subscriber aws account",
+          "Description": "Subscriber AWS Account number(s) required for Assume Role, Provide a valid 12-digit AWS Account Number",
           "Type": "String"
         },
         "PaloAltoGroupCapacity":{
@@ -111,7 +109,7 @@
         "trustedSource" : {
             "Description" : "Trusted source to allow access to PA MGMT interface",
             "Type" : "String",
-            "Default" : "202.65.158.154/32"
+            "Default" : "0.0.0.0/0"
         }
     },
     "Mappings": {
@@ -1171,6 +1169,6 @@
         "TransitSnsArn": {
             "Description" : "Transit SNS Topic Arn, This will be given and Parameter while launching Subscriber Initialization CFT",
             "Value" : {"Ref":"SNSTopic"}
+        }
     }
-}
 }

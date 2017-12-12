@@ -11,12 +11,9 @@ logger.setLevel(logging.INFO)
 transitConfigTable = os.environ['transitConfigTable']
 region = os.environ['Region']
 
-#transitConfigTable = 'TransitConfig'
-#region = 'us-east-1'
-'''
-pan_vpn_generic.createNewPaGroup(region, stackName, templateUrl, paGroupName, sshKey, transitVpcMgmtAz1, transitVpcMgmtAz2,transitVpcDmzAz1, transitVpcDmzAz2, transitVpcTrustedSecurityGroup, transitVpcUntrustedSecurityGroup,paGroupInstanceProfile, paBootstrapBucketName, Node1Asn, Node2Asn, transitVpcDmzAz1SubnetGateway, transitVpcDmzAz2SubnetGateway )
-'''
 def updatePaGroup(tableName, paGroup):
+    """Updates the Transit PaGroupInfo table attribute InUse=YES by specifying the PaGroupName
+    """
     try:
         dynamodb=boto3.resource('dynamodb',)
         table = dynamodb.Table(tableName)
@@ -26,6 +23,8 @@ def updatePaGroup(tableName, paGroup):
         logger.error("Error from updatePaGroup, Faild to update table with: {}, Error: {}".format(data,str(e)))
     
 def getPaGroupAndAsns(tableName):
+    """Returns an Item from Transit PaGroupInfo table by filtering the table with InUse attribute value to NO
+    """
     try:
         dynamodb=boto3.resource('dynamodb',region_name=region)
         table = dynamodb.Table(tableName)

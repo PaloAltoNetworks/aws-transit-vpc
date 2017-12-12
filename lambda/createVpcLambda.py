@@ -30,13 +30,13 @@ Ouput:
 }
 '''
 subscribingVpcTag="subscribingVpc"
-#subscriberConfigTable="SubscriberConfig"
-#region = "us-east-1"
 
 subscriberConfigTable = os.environ['subscriberConfigTable']
 region = os.environ['Region']
     
 def updateDynamoDb(tableName,vpcId,vpcCidr,awsRegion):
+    """Updates SubscriberLocalDb with VpcId, VpcCidr and Region
+    """
     try:
         dynamodb = boto3.resource('dynamodb',region_name=region)
         table = dynamodb.Table(tableName)
@@ -45,27 +45,10 @@ def updateDynamoDb(tableName,vpcId,vpcCidr,awsRegion):
         logger.info("Updated Subscriber local DynmodDB with vpc-id: {} and vpc-cidr: {}".format(vpcId,vpcCidr))
     except Exception as e:
         logger.error("Error from updateDynamoDb(), {}".format(str(e)))
-def updateTags(awsRegion, vpcId):
-    try:
-        #ConfigReason       VPC-CIDR Conflicts
-        ec2 =boto3.client('ec2',region_name=awsRegion)
-        tags=[
-            {
-                'Key': 'ConfigStatus',
-                'Value': 'Vpn-Failed'
-            },
-            {
-                'Key': 'ConfigReason',
-                'Value': 'VPC-CIDR Conflicts'
-            }
-        ]
-        ec2.create_tags(Resources=[vpcId],Tags=tags)
-        logger.info("Updated VPC-Failed tags to VPCID: {}".format(vpcId))
-        sys.exit(0)
-    except Exception as e:
-        logger.info("Updating VPC-Failed tags failed, Error: {}".format(str(e)))
 
 def isSubscribingVpc(id,region):
+    """Checks whether the VPC created is a subscribingVpc or not based on the Tag
+    """
     try:
         ec2_conn = boto3.client('ec2',region_name=region)
         vpc_tags=ec2_conn.describe_tags(Filters=[{'Name':'resource-id','Values':[id]}],MaxResults=99)['Tags']

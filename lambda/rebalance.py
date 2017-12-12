@@ -1,8 +1,10 @@
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
-
 from pan_vpn_generic import deactivateLicense, paGroupDelPaPeers
+
 def room_for_rebalance(paGroupList, maxVpcPerPaGroup):
+    """Retruns the FromPaGroup and ToPaGroup if there is a room for rebalance
+    """
     # Find total number of VPCs
     num_of_paGroups = len(paGroupList)
     total_vpcs = 0
@@ -48,6 +50,8 @@ def room_for_rebalance(paGroupList, maxVpcPerPaGroup):
         return result
 
 def deleteStack(awsRegion, stackName):
+    """Deletes the PAGroup CFT stack
+    """
     try:
         cft = boto3.client('cloudformation', region_name=awsRegion)
         cft.delete_stack(StackName=stackName)
@@ -56,6 +60,8 @@ def deleteStack(awsRegion, stackName):
         print("Error from deleteStack(), Error: {}".format(str(e)))
 
 def updateBgpTunnelIpPool(tableName, paGroupName, region):
+    """Updates the Transit BgpTunnleIpPool with attribute "Available=YES" and VpcId and PaGroupName to Null
+    """
     try:
         dynamodb = boto3.resource('dynamodb', region_name = region)
         table = dynamodb.Table(tableName)
@@ -74,6 +80,8 @@ def updateBgpTunnelIpPool(tableName, paGroupName, region):
         print("Error from updateBgpTunnelIpPool, Error: {}".format(str(e)))
 
 def updatePaGroupInfo(tableName, paGroup, region):
+    """Updates the Transit PaGroupInfo table attribute with "InUse=NO" and "VpcCount=0"
+    """
     try:
         dynamodb = boto3.resource('dynamodb', region_name = region)
         table = dynamodb.Table(tableName)
@@ -90,6 +98,8 @@ def updatePaGroupInfo(tableName, paGroup, region):
         print("Error from updatePaGroupInfo, Error: {}".format(str(e)))
        
 def updateTransitConfig(tableName, region):
+    """Updates the Transit Config table attribute with RebalanceInProgress=False
+    """
     try:
         dynamodb = boto3.resource('dynamodb', region_name = region)
         table = dynamodb.Table(tableName)
@@ -143,5 +153,3 @@ def rebalance(api_key, paGroupList, maxVpcPerPaGroup, transitConfig, keep_unused
     else:
         # Result is of format {"from":<paGroup>, "to":<paGroup> }
         return result
-
-

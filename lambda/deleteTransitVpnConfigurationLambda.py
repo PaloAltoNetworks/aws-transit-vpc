@@ -8,12 +8,12 @@ from boto3.dynamodb.conditions import Key, Attr
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-#transitConfigTable="TransitConfig"
-#region = 'us-east-1'
 transitConfigTable = os.environ['transitConfigTable']
 region = os.environ['Region']
 
 def deleteItemFromVpcTable(tableName, vpcId):
+    """Deletes an Item from Transit VpcTable by specifying the VpcId key
+    """
     try:
         dynamodb = boto3.resource('dynamodb', region_name=region)
         table = dynamodb.Table(tableName)
@@ -23,6 +23,8 @@ def deleteItemFromVpcTable(tableName, vpcId):
         logger.error("Error from deleteItemFromVpcTable, Error: {}".format(str(e)))
 
 def updatePaGroupInfoTable(tableName,paGroupName):
+    """Updates the Transit PaGroupInfo table  attribute VpcCount value to decremented by 1 (-1) by querying the table with PaGroupName
+    """
     try:
         dynamodb = boto3.resource('dynamodb', region_name=region)
         table = dynamodb.Table(tableName)
@@ -35,6 +37,8 @@ def updatePaGroupInfoTable(tableName,paGroupName):
         logger.error("Error from updatePaGroupInfoTable, Error: {}".format(str(e)))
 
 def updateBgpTunnleIpPool(tableName,paGroupName):
+    """Updates the Transit BgpTunnleIpPool attributes Available=YES, VpcId=Null and PaGroupName=Null
+    """
     try:
         dynamodb = boto3.resource('dynamodb', region_name=region)
         table = dynamodb.Table(tableName)
@@ -55,6 +59,8 @@ def updateBgpTunnleIpPool(tableName,paGroupName):
         logger.error("Error from updateBgpTunnleIpPool, Error: {}".format(str(e)))
 
 def getItemFromVpcTable(tableName,vpcId):
+    """Returns an Item from Transit VpcTable by querying the table with VpcId key
+    """
     try:
         dynamodb = boto3.resource('dynamodb', region_name=region)
         table = dynamodb.Table(tableName)
@@ -68,6 +74,8 @@ def getItemFromVpcTable(tableName,vpcId):
         logger.error("Error from getItemFromVpcTable, Error: {}".format(str(e)))
 
 def getItemFromPaGroupInfo(tableName, paGroupName):
+    """Returns an Item from PaGroupInfo table by querying the table with PaGroupName key
+    """
     try:
         dynamodb = boto3.resource('dynamodb', region_name=region)
         table = dynamodb.Table(tableName)
