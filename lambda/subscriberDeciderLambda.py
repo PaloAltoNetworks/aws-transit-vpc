@@ -1,6 +1,6 @@
 import boto3
 import logging
-import os
+import os, sys
 from commonLambdaFunctions import fetchFromSubscriberConfigTable, sendToQueue
 from boto3.dynamodb.conditions import Key, Attr
 import json

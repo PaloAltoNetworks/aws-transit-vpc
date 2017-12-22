@@ -94,7 +94,7 @@ def lambda_handler(event, context):
                         # Send DeleteOperatin first
                         deleteData = {
                             'Action': 'DeleteVpnConnection',
-                            'VpnId': subscriberData['Node1VpnId'],
+                            'VpcId': subscriberData['VpcId'],
                             'Region': subscriberData['Region'],
                             'Rebalance': 'True'
                         }

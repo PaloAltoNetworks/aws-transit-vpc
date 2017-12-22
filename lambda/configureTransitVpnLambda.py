@@ -17,6 +17,7 @@ Input:
     'VpnN2': vpnId2,
     'VpcId': event['VpcId'],
     'Region': event['Region'],
+    'Rebalance': event['Rebalance'],
     'TransitVpnBucketName': event['TransitVpnBucketName'],
     'SubscriberSnsArn': subscriberConfig['SubscriberSnsArn'],
     'SubscriberAssumeRoleArn': subscriberConfig['SubscriberAssumeRoleArn']
@@ -90,6 +91,28 @@ def getItemFromVpcTable(tableName,vpcId):
     except Exception as e:
         logger.error("Error from getItemFromVpcTable, Error: {}".format(str(e)))
 
+def updateVgwAsn(tableName, vpcId, vgwAsn):
+    try:
+        dynamodb = boto3.resource('dynamodb', region_name=region)
+        table = dynamodb.Table(tableName)
+        logger.info("Checking for VgwAsn mis-match in VgwAsn table")
+        response = table.scan(FilterExpression=Attr('VpcId').eq(vpcId))
+        LastEvaluatedKey = True
+        while LastEvaluatedKey:
+            for item in response['Items']:
+                if 'VpcId' in item:
+                    if item['VgwAsn']!=vgwAsn:
+                        data = {'VgwAsn':item['VgwAsn'],'InUse':'NO'}
+                        table.put_item(Item=data)
+                        logger.info("VgwAsn are mis-matched, because user created the VGW and attached it to VPC, hence using the same VGW, updating previously allocated VgwAsn: {} with InUse=NO in Transit VgwAsn table".format(item['VgwAsn']))
+                        return
+            if 'LastEvaluatedKey' in response:
+                response = table.scan(FilterExpression=Attr('VpcId').eq(vpcId),ExclusiveStartKey=response['LastEvaluatedKey'])
+            else:
+                LastEvaluatedKey = False
+    except Exception as e:
+        logger.error("Error from updateVgwAsn(), Error: {}".format(str(e)))
+
 def lambda_handler(event,context):
     logger.info("Got Event {}".format(event))
     #username = "admin"
@@ -102,10 +125,12 @@ def lambda_handler(event,context):
             paVpnStatus = pan_vpn_generic.paGroupConfigureVpn(api_key, paGroupInfo, config['TransitVpnBucketName'], event['VpnN1'],event['VpnN2'])
             if paVpnStatus:
                 updateVpcTable(config['TransitVpcTable'],event,'Configured')
+                updateVgwAsn(config['TransitVgwAsn'],event['VpcId'],event['VgwAsn'])
                 data={
                     'Action': 'VpnConfigured',
                     'VpcId': event['VpcId'],
                     'PaGroupName': event['PaGroupName'],
+                    'Rebalance': event['Rebalance'],
                     'Region': event['Region']
                 }
                 logger.info("Publishing message to Subscriber SNS with data: {}".format(data))
@@ -114,9 +139,11 @@ def lambda_handler(event,context):
                 updatePaGroup(config['TransitPaGroupInfo'],event['PaGroupName'], -1)
                 updateBgpTunnelIpPool(config['TransitBgpTunnelIpPool'],event['IpSegment'])
                 updateVpcTable(config['TransitVpcTable'],event,'Failed')
+                updateVgwAsn(config['TransitVgwAsn'],event['VpcId'],event['VgwAsn'])
                 #Publish Message to SubscriberSns
                 data={
                     'Action': 'VpnFailed',
+                    'Rebalance': event['Rebalance'],
                     'VpcId': event['VpcId'],
                     'Region': event['Region']
                 }

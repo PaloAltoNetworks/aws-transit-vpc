@@ -1,3 +1,7 @@
+# Important Notice
+- CGWs and VGWs should not be created/managed manually, these are automatically created with Tranit/Subscriber Solution with unique ASN  numbers
+- If you create VGW and attach it to VPC, it may leads to VPN connection(same ASN numbers assigned to different VGWs)
+
 # Transit Environment Setup
 
 The first step towards setting up the environment is to make sure the following S3 buckets are pre-created in Transit account.
@@ -184,9 +188,9 @@ Any number of subscriber VPCs can be launched but, make sure that provided VPC a
 
 This stack creates the subscriber VPC.
 
-For the Transit account CFT, clone the “palo-alto-scripts” repo from AWS Code Commit. Under the “cfts”, use the "subscriberVpcCFT.json" CFT to launch the Subscriber VPC stack.
+Clone the “palo-alto-scripts” repo from AWS Code Commit. Under the “cfts”, use the "subscriberVpcCft.json" CFT to launch the Subscriber VPC stack.
 
-Steps to launch the "subscriberVpcCFT" stack:
+Steps to launch the "subscriberVpcCft" stack:
 
 1. Navigate to AWS CloudFormation on the Subscriber AWS account.
 
@@ -199,13 +203,31 @@ Steps to launch the "subscriberVpcCFT" stack:
 4. Next, enter a unique name for your stack.
 ![alt text](images/stack_name.png "Stack name")
 
-5. Provide the parameters for the stack. Make sure that VPC and Subnet ranges are valid.
+5. Provide the parameters for the stack. Make sure that VPC and Subnet ranges are valid and unique with the other subscribing Vpcs
+   Example: VPC1 - 10.10.0.0/16, VPC2 - 10.10.0.0/17 will not work, since /17 is subset of /16. So be cautious while choosing the VPC-CIDRs
 
-6. Then click “Next”.
+6.This CFT will create one-VPC, 4-subnets: 2-public and 2-private subnets, One-NAT instance launched to test the Routing between VPCs
+      * "VpcCidrRange"
+      * "SubnetCidr1"
+      * "SubnetCidr2"
+      * "SubnetCidr3"
+      * "SubnetCidr4"
+    These parameters have default values that can be modified if required.
 
-7. Optionally, enter tags for your stack and then click on “Next”.
+7. Then click “Next”.
+
+8. Optionally, enter tags for your stack and then click on “Next”.
 ![alt text](images/stack_tags.png "Tags")
 
-8. Review the details of the stack and then on the same page, under "Capabilities", check the “I acknowledge that AWS CloudFormation might create IAM resources with custom names” option.
+9. Review the details of the stack and then on the same page, under "Capabilities", check the “I acknowledge that AWS CloudFormation might create IAM resources with custom names” option.
 
-9. Then click on “Create” and wiat for the stack to be completed.
+10. Then click on “Create” and wiat for the stack to be completed.
+
+# Routing Test
+
+Once all the VPN connections are established with Transit System, you can do the route testing
+To do the routing testing between VPCs connected through Transit System, you need to do below things
+
+1. Enable Route propagation on VPC route tables in Route Table Console
+2. Allow All/ICMP traffic from respective VPC CIDR (or All-Traffic: 0.0.0.0/0)to the Instance Security Group which needs to talk to Other VPC instances
+

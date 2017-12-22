@@ -2,8 +2,9 @@ This document talks about AWS Lambda functions that are implemented.
 
 ## CloudTrailLambda
   * Triggerd when Object:Put on CloudTrail S3 bucket
-  * Looks for events ['CreateVpc', 'DeleteVpnConnection']
-  * Sends notification to Subscriber SNS Topic
+  * Looks for events ['CreateTags', 'DeleteTags']
+  * If event==CreateTags: checks whether the resource is VPC and subscribingVpc=yes, sends notification to Subscriber SNS Topic with Action:CreateVpnConnection
+  * If evetn==DeleteTags: checks whether the resource is VPC and subscribingVpc=yes, sends notification to Subscriber SNS Topic with Action:DeleteVpnConnection
 
 ## SubscriberDeciderLambda:
   * This function will get triggered by Subscriber SNS Topic
@@ -36,11 +37,9 @@ This document talks about AWS Lambda functions that are implemented.
   * Get one message from SQS queue
   * Based on the 'Action' value it will trigger that specific action related Lambda Function (ie., CreateVpc, ConfigureSubscribingVpcVpn,VpnConfigured etc.,)
 
-## CreateVpcLambda:
-  * Checks whether the VPC is subscribing VPC or not
-  * If subsribing VPC, updates Subscriber LocalDB with VpcId and VpcCidr, if the VpcCidr is not conflicts with existing DB-Items.
+## CreateVpnConnectionLambda:
+  * Udates Subscriber LocalDB with VpcId and VpcCidr, if the VpcCidr is not conflicts with existing DB-Items.
     * Then sends notification to Transit SNS with 'Action': 'FetchVpnServerDetails'
-  * If not exit the process
 
 ## FetchVpnServerDetailsLambda:
   * Checks for Vpc Cidr conflicts, if no conflicts proceed else exit from the process

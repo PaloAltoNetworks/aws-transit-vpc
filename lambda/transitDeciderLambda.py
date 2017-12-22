@@ -47,8 +47,6 @@ def lambda_handler(event,context):
                 sfnConnection.start_execution(stateMachineArn=transitConfig['TransitStateMachineArn'])
         else:
             logger.error("Not Received any data from TransitConfig table")
-            return
     except Exception as e:
-        logger.info(str(e))
-        return
+        logger.error("Error from TransitDecider(), Error: {}".format(str(e)))
 

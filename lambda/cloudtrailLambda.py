@@ -9,14 +9,43 @@ from commonLambdaFunctions import fetchFromSubscriberConfigTable, publishToSns
 
 
 FILENAME = "/tmp/log.gz"
-watchedEvents=['CreateVpc','DeleteVpnConnection']
+watchedEvents=['CreateTags','DeleteTags']
 #subscriberConfigTable="SubscriberConfig"
 subscriberConfigTable = os.environ['subscriberConfigTable']
 region = os.environ['Region']
 #SubscriberSnsArn="arn:aws:sns:us-east-1:961190221792:kumar-subscriber-sns"
 
+subscribingVpcTag = 'subscribingVpc'
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+def formRequiredData(vpcId,awsRegion, action, subscriberSns):
+    """Formates the required Input for CreateVpnConnnectionLambda and DeleteVpnConnectionLambda funtions
+    """
+    try:
+        if action=='CreateTags':
+            ec2_conn = boto3.client('ec2',region_name=awsRegion)
+            vpcData = ec2_conn.describe_vpcs(VpcIds=[vpcId])['Vpcs'][0]
+            data = {
+                'Action': 'CreateVpnConnection',
+                'VpcId': vpcId,
+                'VpcCidr': vpcData['CidrBlock'],
+                'Region': awsRegion,
+                'Rebalance': 'False'
+            }
+        elif action=='DeleteTags':
+            data = {
+                'Action': 'DeleteVpnConnection',
+                'VpcId': vpcId,
+                'Region': awsRegion,
+                'Rebalance': 'False'
+            }
+
+        logger.info("Publishing to Subscriber-SNSTopoic: {} with Data: {}".format(subscriberSns,data))
+        publishToSns(subscriberSns, str(data))
+    except Exception as e:
+        logger.error("Error from formRequiredData(),and exiting the process, Error: {}".format(str(e)))
+        sys.exit(0)
 
 def parse_log(path):
     with gzip.open(path, "rb") as f:
@@ -26,29 +55,31 @@ def parse_log(path):
             if subscriberConfig:
                 for record in d['Records']:
                     if record['eventName'] in watchedEvents:
-                        if record['eventName']=='DeleteVpnConnection':
-                            if 'errorCode' not in record:
-                                data = {
-                                   'Action': 'DeleteVpnConnection', 
-                                   'VpnId': record['requestParameters']['vpnConnectionId'],
-                                   'Region': record['awsRegion'],
-                                   'Rebalance': 'False'
-                                } 
-                                logger.info("Publishing to Subscriber-SNSTopoic: {} with Data: {}".format(subscriberConfig['SubscriberSnsArn'],data))
-                                publishToSns(subscriberConfig['SubscriberSnsArn'], str(data))
-                            else:
-                                logger.info("Attempted to DeleteVpnConnection but failed bucause of : {}".format(record['errorMessage']))
-                                sys.exit(0)
-                        elif record['eventName']=='CreateVpc':
-                            data={
-                                'Action': 'CreateVpc',
-                                'VpcId': record['responseElements']['vpc']['vpcId'],
-                                'VpcCidr': record['responseElements']['vpc']['cidrBlock'],
-                                'Region': record['awsRegion'],
-                                'Rebalance': 'False'
-                            }
-                            logger.info("Publishing to Subscriber-SNSTopoic: {} with Data: {}".format(subscriberConfig['SubscriberSnsArn'],data))
-                            publishToSns(subscriberConfig['SubscriberSnsArn'], str(data))
+                        logger.info("Record: {}".format(record))
+                        if 'errorCode' not in record:
+                            if record['eventName']=='CreateTags':
+                                items = record['requestParameters']['resourcesSet']['items']
+                                for item in items:
+                                    if item['resourceId'].startswith('vpc'):
+                                        tagSet = record['requestParameters']['tagSet']['items']
+                                        for tag in tagSet:
+                                            if tag['key']==subscribingVpcTag: 
+                                                if tag['value'].lower()=='yes':
+                                                    formRequiredData(item['resourceId'], record['awsRegion'], record['eventName'], subscriberConfig['SubscriberSnsArn'])
+                                                #else:
+                                                #    formRequiredData(item['resourceId'], record['awsRegion'], 'DeleteTags', subscriberConfig['SubscriberSnsArn'])
+                            elif record['eventName']=='DeleteTags':
+                                items = record['requestParameters']['resourcesSet']['items']
+                                for item in items:
+                                    if item['resourceId'].startswith('vpc'):
+                                        tagSet = record['requestParameters']['tagSet']['items']
+                                        for tag in tagSet:
+                                            if tag['key']==subscribingVpcTag:
+                                                if tag['value'].lower()=='yes':
+                                                    formRequiredData(item['resourceId'], record['awsRegion'], record['eventName'], subscriberConfig['SubscriberSnsArn'])
+                        else:
+                            logger.info("Attempted to Create/DeleteTags but failed bucause of : {}".format(record['errorMessage']))
+                            sys.exit(0)
             else:
                 logger.error("No data received from SubscriberConfig Table, Error")
                 sys.exit(0)

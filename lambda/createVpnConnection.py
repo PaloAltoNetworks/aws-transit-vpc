@@ -15,7 +15,7 @@ Input:
     'VpcId': record['responseElements']['vpc']['vpcId'],
     'VpcCidr': record['responseElements']['vpc']['cidrBlock'],
     'Region': aws_region
-	'Rebalance': False
+    'Rebalance': False
 }
 
 Ouput:
@@ -45,19 +45,27 @@ def updateDynamoDb(tableName,vpcId,vpcCidr,awsRegion):
         logger.info("Updated Subscriber local DynmodDB with vpc-id: {} and vpc-cidr: {}".format(vpcId,vpcCidr))
     except Exception as e:
         logger.error("Error from updateDynamoDb(), {}".format(str(e)))
-
-def isSubscribingVpc(id,region):
-    """Checks whether the VPC created is a subscribingVpc or not based on the Tag
+ 
+def updateTags(awsRegion, vpcId, oldVpc):
+    """Updates VPC tags with VPN-Failed keys
     """
     try:
-        ec2_conn = boto3.client('ec2',region_name=region)
-        vpc_tags=ec2_conn.describe_tags(Filters=[{'Name':'resource-id','Values':[id]}],MaxResults=99)['Tags']
-        for tag in vpc_tags:
-            if tag['Key']==subscribingVpcTag:
-                if tag['Value'].lower()=='yes':
-                    return True
+        #Update VPC tags with
+        #Key                            Value
+        #ConfigStatus           Vpn-Failed
+        #ConfigReason           VPC-CIDR Conflicts
+        ec2Connection=boto3.client('ec2',region_name=awsRegion)
+        configReason = 'Vpc-CIDR Conflicts with '+oldVpc['VpcId']+':'+oldVpc['Region']
+        tags=[
+            {'Key': 'ConfigStatus','Value': 'Vpn-Failed'},
+            {'Key': 'ConfigReason','Value': configReason}
+        ]
+        ec2Connection.create_tags(Resources=[vpcId],Tags=tags)
+        logger.info("Successfully Updated VPC-Failed tags to VPCID: {}".format(vpcId))
+        sys.exit(0)
     except Exception as e:
-        logger.info("Error from isSubscribingVpc(), {}".format(str(e)))
+        logger.info("Updating VPC-Failed tags failed, Error: {}".format(str(e)))
+        sys.exit(0)
 
 def lambda_handler(event,context):
     logger.info(event)
@@ -66,18 +74,14 @@ def lambda_handler(event,context):
         if subscriberConfig:
             transitSnsTopicArn=os.environ['transitSnsTopicArn']
             transitAssumeRoleArn=os.environ['transitAssumeRoleArn']
-            result=isSubscribingVpc(event['VpcId'],event['Region'])
-            if result:
-                #Update DynamoDB table
-                updateDynamoDb(subscriberConfig['SubscriberLocalDb'],event['VpcId'],event['VpcCidr'], event['Region'])
-                event['SubscriberSnsArn']=subscriberConfig['SubscriberSnsArn']
-                event['Rebalance']='False'
-                event['SubscriberAssumeRoleArn']=subscriberConfig['SubscriberAssumeRoleArn']
-                event['Action']="FetchVpnServerDetails"
-                logger.info("Publishing to Transit-SNS Topoic {} By assuming Role {}".format(transitSnsTopicArn,transitAssumeRoleArn))
-                publishToSns(transitSnsTopicArn, str(event), transitAssumeRoleArn)
-            else:
-                logger.info("Not SubscribingVpc")
+            #Update DynamoDB table
+            updateDynamoDb(subscriberConfig['SubscriberLocalDb'],event['VpcId'],event['VpcCidr'], event['Region'])
+            event['SubscriberSnsArn']=subscriberConfig['SubscriberSnsArn']
+            event['Rebalance']='False'
+            event['SubscriberAssumeRoleArn']=subscriberConfig['SubscriberAssumeRoleArn']
+            event['Action']="FetchVpnServerDetails"
+            logger.info("Publishing to Transit-SNS Topoic {} By assuming Role {}".format(transitSnsTopicArn,transitAssumeRoleArn))
+            publishToSns(transitSnsTopicArn, str(event), transitAssumeRoleArn)
         else:
             logger.error("No data received from SubscriberConfig Table, Error")
     except Exception as e:

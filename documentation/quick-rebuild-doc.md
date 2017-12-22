@@ -9,6 +9,15 @@ Follow the below process to rebuild the environment quickly.
 Login to the Subscriber account and follow the below steps to delete the Transit environment.
 
 ### Destroy Subscriber VPC Stacks
+#### Delete Subscriber VPC stack
+1. Before deleting the SubscriberVpcStack, you should delete the following resources in-order
+    Option 1:
+        a. Delete the VPN connections associated with VPC (VPN connections are tagged along with VpcId, ex: vpc-xxxxx-PaGroupxx-N1/N2)
+        b. First Detach and then Delete the Virtual Gateway(VGW) associated with VPC
+        c. Delete the subscribing VPC from Cloudformation stack
+    Option 2:
+        a. Update subscrbingVpc tag to NO (subscribingVpc=NO) for subscriber VPC, it will delete the VPNs and VGW associated. (Its a cloudtrail event you need to wait atleast 5 minutes to delete VPNs and VGW)
+        b. Delete the subscribing VPC from Cloudformation stack
 
 Find the Subscriber VPC CloudFormation stacks deployed in the Subscriber account
 

@@ -123,6 +123,11 @@ def getAvailableVgwAsn(tableName,data):
     """
     try:
         table=dynamodb.Table(tableName)
+        #Check whether the VPC is assigned with VgwAsn number
+        res = table.scan(FilterExpression=Attr('VpcId').eq(data['VpcId']))['Items']
+        if res:
+            logger.info("The VPC: {} is already assigned with VgwAsn: {}".format(data['VpcId'],res['Items'][0]['VgwAsn']))
+            return res[0]['VgwAsn']
         response=table.scan(FilterExpression=Attr('InUse').eq('NO'))['Items']
         if response:
             #Update VgwAsn Table with InUse=YES, VpcId and VpcCidr values
@@ -202,43 +207,45 @@ def lambda_handler(event,context):
                 if paGroup:
                     logger.info("Got PaGroup Details {} , hence proceeding to get available VGW ASN Number ".format(paGroup))
                     #Get Available VgwAsn Number
-                    vgwAsnNumber = ""
-                    if 'Rebalance' in event and event['Rebalance']!='True':
-                        vgwAsnNumber=getAvailableVgwAsn(transitConfig['TransitVgwAsn'],event)
+                    vgwAsnNumber=getAvailableVgwAsn(transitConfig['TransitVgwAsn'],event)
+                    if vgwAsnNumber:
                         logger.info("Got vgwAsnNumber={}, hence proceeding to get available BgpIpPool Cidr ranges".format(vgwAsnNumber))
-                    #Get Available Tunnel IP Pool Ranges
-                    bgpIpPool=getAvailableBgpTunnelIpPool(transitConfig['TransitBgpTunnelIpPool'], event['VpcId'], paGroup['PaGroupName'])
-                    if bgpIpPool:
-                        logger.info("Got bgpIpPool={}, hence proceeding to publish to Subscriber-SNS ".format(bgpIpPool))
-                        data={
-                            'Action': 'ConfigureSubscribingVpcVpn',
-                            'IpSegment': bgpIpPool['IpSegment'],
-                            'N1T1': bgpIpPool['N1T1'],
-                            'N1T2': bgpIpPool['N1T2'], 
-                            'N1Eip': paGroup['N1Eip'],
-                            'N1Asn': str(paGroup['N1Asn']),
-                            'N2T1': bgpIpPool['N2T1'],
-                            'N2T2': bgpIpPool['N2T2'], 
-                            'N2Eip': paGroup['N2Eip'],
-                            'N2Asn': str(paGroup['N2Asn']),
-                            'PaGroupName': paGroup['PaGroupName'],
-                            'Rebalance' : event['Rebalance'],
-                            'VpcId': event['VpcId'],
-                            'VpcCidr': event['VpcCidr'],
-                            'Region': event['Region'],
-                            'TransitVpnBucketName': transitConfig['TransitVpnBucketName'],
-                            'TransitAssumeRoleArn': transitConfig['TransitAssumeRoleArn'],
-                            'TransitSnsArn': transitConfig['TransitSnsArn']
-                        } 
-                        if vgwAsnNumber: data['VgwAsn'] = str(vgwAsnNumber)
-                        #Update VpcTable with VpcId, VpcCidr and SubsriberSnsArn
-                        updateVpcTable(transitConfig['TransitVpcTable'],event,paGroup['PaGroupName'])
-                        #Publish the data to Subscriber-SNS Topic
-                        logger.info("Publishing to Subscriber SNS: {} with data: {}".format(subscriberSnsTopicArn,data))
-                        publishToSns(subscriberSnsTopicArn,data,subscriberAssumeRoleArn)
-                        return transitTaskHandler
+                        #Get Available Tunnel IP Pool Ranges
+                        bgpIpPool=getAvailableBgpTunnelIpPool(transitConfig['TransitBgpTunnelIpPool'], event['VpcId'], paGroup['PaGroupName'])
+                        if bgpIpPool:
+                            logger.info("Got bgpIpPool={}, hence proceeding to publish to Subscriber-SNS ".format(bgpIpPool))
+                            data={
+                                'Action': 'ConfigureSubscribingVpcVpn',
+                                'IpSegment': bgpIpPool['IpSegment'],
+                                'N1T1': bgpIpPool['N1T1'],
+                                'N1T2': bgpIpPool['N1T2'], 
+                                'N1Eip': paGroup['N1Eip'],
+                                'N1Asn': str(paGroup['N1Asn']),
+                                'N2T1': bgpIpPool['N2T1'],
+                                'N2T2': bgpIpPool['N2T2'], 
+                                'N2Eip': paGroup['N2Eip'],
+                                'N2Asn': str(paGroup['N2Asn']),
+                                'PaGroupName': paGroup['PaGroupName'],
+                                'Rebalance' : event['Rebalance'],
+                                'VgwAsn': str(vgwAsnNumber),
+                                'VpcId': event['VpcId'],
+                                'VpcCidr': event['VpcCidr'],
+                                'Region': event['Region'],
+                                'TransitVpnBucketName': transitConfig['TransitVpnBucketName'],
+                                'TransitAssumeRoleArn': transitConfig['TransitAssumeRoleArn'],
+                                'TransitSnsArn': transitConfig['TransitSnsArn']
+                            } 
+                            #Update VpcTable with VpcId, VpcCidr and SubsriberSnsArn
+                            updateVpcTable(transitConfig['TransitVpcTable'],event,paGroup['PaGroupName'])
+                            #Publish the data to Subscriber-SNS Topic
+                            logger.info("Publishing to Subscriber SNS: {} with data: {}".format(subscriberSnsTopicArn,data))
+                            publishToSns(subscriberSnsTopicArn,data,subscriberAssumeRoleArn)
+                            return transitTaskHandler
+                        else:
+                            logger.error("BgpTunnelIpPools are exausted, hence exiting from setup")
+                            sys.exit(0)
                     else:
-                        logger.error("BgpTunnelIpPools are exausted, hence exiting from setup")
+                        logger.error("VgwAsns are exausted, hence exiting from setup")
                         sys.exit(0)
                 else:
                     #Launch CFT to spin up new PA-Group 

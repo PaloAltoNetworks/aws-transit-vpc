@@ -44,7 +44,25 @@ def updatePaGroup(paGroupTableName,paGroupName):
     except Exception as e:
         logger.error("Error from updatePaGroup(), Error: {}".format(str(e)))
 
+def updateVgwAsn(tableName,vgwAsn):
+    """Updates Transit VgwAsn table attribute "InUse=NO"
+    """
+    try:
+        dynamodb = boto3.resource('dynamodb', region_name=region)
+        table = dynamodb.Table(tableName)
+        logger.info("VgwAsn TableName: {}, and typeofVgwAsn: {}".format(tableName,type(vgwAsn)))
+        response = table.query(KeyConditionExpression=Key('VgwAsn').eq(str(vgwAsn)))['Items']
+        if response:
+           item={'VgwAsn':str(vgwAsn),'InUse':'NO'}
+           table.put_item(Item=item)
+           logger.info("Successfully updated VgwAsn: {}, InUse=NO".format(vgwAsn))
+    except Exception as e:
+        logger.error("Error from updatePaGroupInfoTable, Error: {}".format(str(e)))
+        #If the VGW was created by customer manually, we dont have that VgwAsn enrty in Transit VgwAsn table, hence we are throwing the error and proccedind
+        pass
+
 def lambda_handler(event,context):
     transitConfig=fetchFromTransitConfigTable(transitConfigTable)
     updatePaGroup(transitConfig['TransitPaGroupInfo'],event['PaGroupName'])
     updateBgpTunnelIpPool(transitConfig['TransitBgpTunnelIpPool'],event['IpSegment'])
+    updteVgwAsn(transitConfig['TransitVgwAsn'], event['VgwAsn'])

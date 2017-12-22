@@ -10,30 +10,35 @@ All Spoke VPCs are connected to Palo Alto Firewall located in HUB VPC. All Spoke
 ## Architecture Diagram
 ![alt text](images/PaloAlto_architecture.png "Architecture Diagram")
 
+## How VPN configuration triggered
+It is triggerd when you add "subscribingVpc=YES/Yes/yes" tag to a AWS VPC
+
+## How VPN deletion triggered
+It is triggerd when you change/delete "subscribingVpc" tag of/from a AWS VPC
+
 ## Design considerations
-1. When a Spoke VPC or Subscribing VPC is created, it should trigger automatic configuration of VPN with a PA server pair in HUB VPC
 
-2. For redundancy there should be two PA Servers establishing VPN with each VPC and each PA server should be in separate availability zone
+1. For redundancy there should be two PA Servers establishing VPN with each VPC and each PA server should be in separate availability zone
 
-3. Each PA Group (acts as a single logical unit and has two nodes in two az for redundancy) has a limit on maximum number of VPCs (X) it can establish VPN with. When number of VPC exceeds the maximum limit that can be supported by existing number of PA Groups, a new PA Group should be created
+2. Each PA Group (acts as a single logical unit and has two nodes in two az for redundancy) has a limit on maximum number of VPCs (X) it can establish VPN with. When number of VPC exceeds the maximum limit that can be supported by existing number of PA Groups, a new PA Group should be created
 
-4. When a new Subscriber VPC is created, it should automatically get associated with a PA group which has capacity
+3. When a new Subscriber VPC is created, it should automatically get associated with a PA group which has capacity
 
-5. When new PA Groups are created to support new VPCs, each node of the newly created PA Group should establish BGP peer with nodes associated with other PA groups which belong to the same AZ
+4. When new PA Groups are created to support new VPCs, each node of the newly created PA Group should establish BGP peer with nodes associated with other PA groups which belong to the same AZ
 
-6. To avoid traffic from Subscribing VPC to pass through both the VPN tunnels (tunnel to Node1 and Node2 of the PA group it is associated with), BGP configuration on one of the node should have an MED value set that is different from the other. To satisfy this requirement, node1 of all PA group will be using "active" bgp peer group and node2 will be using "passive" bgp peer group. The difference between these peer groups is that "passive" peer group has an MED value set and "active" does not
+5. To avoid traffic from Subscribing VPC to pass through both the VPN tunnels (tunnel to Node1 and Node2 of the PA group it is associated with), BGP configuration on one of the node should have an MED value set that is different from the other. To satisfy this requirement, node1 of all PA group will be using "active" bgp peer group and node2 will be using "passive" bgp peer group. The difference between these peer groups is that "passive" peer group has an MED value set and "active" does not
 
-7. Minimum manual steps from a customer who want to setup this system
+6. Minimum manual steps from a customer who want to setup this system
 
-8. Un subscription from the system should be automatic
+7. Un subscription from the system should be automatic
 
-9. System should not spin up new PA (or PA Group) if existing system have capacity to host new VPC
+8. System should not spin up new PA (or PA Group) if existing system have capacity to host new VPC
 
-10. When configuring AWS VPN, AWS allocates /30 ip ranges for each tunnel associated with a VPN GW. There could be conflict if subscribers are from different region or from different AWS accounts.
+9. When configuring AWS VPN, AWS allocates /30 ip ranges for each tunnel associated with a VPN GW. There could be conflict if subscribers are from different region or from different AWS accounts.
 
-11. To avoid conflict, each PA node should have unique ASN
+10. To avoid conflict, each PA node should have unique ASN
 
-12. To avoid conflict, each VGW associated with subscribing VPC should have unique ASN
+11. To avoid conflict, each VGW associated with subscribing VPC should have unique ASN
 
 ## Design Overview
 This system can be split into two logical pieces

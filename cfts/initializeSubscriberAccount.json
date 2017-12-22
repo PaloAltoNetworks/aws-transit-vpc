@@ -161,7 +161,7 @@
         "Type": "AWS::S3::BucketPolicy",
         "DependsOn": ["CloudTrailS3Bucket"],
         "Properties": {
-            "Bucket": {"Ref": "CloudTrailS3Bucket"},
+            "Bucket": {"Ref": "CloudTrailS3BucketName"},
             "PolicyDocument": {
                 "Version": "2012-10-17",
                 "Statement": [
@@ -170,14 +170,14 @@
                         "Effect": "Allow",
                         "Principal": {"Service": "cloudtrail.amazonaws.com"},
                         "Action": "s3:GetBucketAcl",
-                        "Resource": { "Fn::Join": [":", ["arn:aws:s3::", {"Ref": "CloudTrailS3Bucket"}]]}
+                        "Resource": { "Fn::Join": [":", ["arn:aws:s3::", {"Ref": "CloudTrailS3BucketName"}]]}
                     },
                     {
                         "Sid": "AWSCloudTrailWrite20150319",
                         "Effect": "Allow",
                         "Principal": {"Service": "cloudtrail.amazonaws.com"},
                         "Action": "s3:PutObject",
-                        "Resource": {"Fn::Join": [ "", ["arn:aws:s3:::", {"Ref": "CloudTrailS3Bucket"}, "/AWSLogs/", {"Ref": "AWS::AccountId"}, "/*"]]},
+                        "Resource": {"Fn::Join": [ "", ["arn:aws:s3:::", {"Ref": "CloudTrailS3BucketName"}, "/AWSLogs/", {"Ref": "AWS::AccountId"}, "/*"]]},
                         "Condition": {
                             "StringEquals": {
                                 "s3:x-amz-acl": "bucket-owner-full-control"
@@ -283,12 +283,12 @@
         "LambdaExecutionRole"
       ]
     },
-    "CreateVpcLambda": {
+    "CreateVpnConnectionLambda": {
       "Type": "AWS::Lambda::Function",
       "Properties": {
-        "FunctionName": {"Fn::Join": ["-", ["createVpcLambda", { "Ref": "AWS::StackName" }]]},
+        "FunctionName": {"Fn::Join": ["-", ["createVpnConnection", { "Ref": "AWS::StackName" }]]},
         "Description": "CloudTrail Lambda triggers when a Object:Put operation on bucket",
-        "Handler": "createVpcLambda.lambda_handler",
+        "Handler": "createVpnConnection.lambda_handler",
         "Role": {"Fn::GetAtt": ["LambdaExecutionRole","Arn"]},
         "Code": {
           "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
@@ -493,121 +493,82 @@
       }
     },
     "LambdaExecutionPolicy": {
-      "Type": "AWS::IAM::Policy",
-      "Properties": {
-        "PolicyName": {"Fn::Join": ["-", ["LambdaExecutionPolicy", { "Ref": "AWS::StackName" }]]},
-        "Roles": [{"Ref": "LambdaExecutionRole"}],
-        "PolicyDocument": {
-                        "Version": "2012-10-17",
-                        "Statement": [
-                                {
-                                        "Sid": "STSAccumRole",
-                                        "Effect": "Allow",
-                                        "Action": ["sts:AssumeRole"],
-                                        "Resource": ["*"]
-                                },
-                                {
-                                        "Sid": "EC2VPCRelatedActions",
-                                        "Effect": "Allow",
-                                        "Action": [
-                                                "ec2:AttachVpnGateway",
-                                                "ec2:CreateCustomerGateway",
-                                                "ec2:CreateTags",
-                                                "ec2:CreateVpnConnection",
-                                                "ec2:CreateVpnGateway",
-                                                "ec2:DeleteCustomerGateway",
-                                                "ec2:DeleteVpnConnection",
-                                                "ec2:DeleteVpnGateway",
-                                                "ec2:DescribeCustomerGateways",
-                                                "ec2:DescribeTags",
-                                                "ec2:DescribeVpcs",
-                                                "ec2:DescribeVpnConnections",
-                                                "ec2:DescribeVpnGateways",
-                                                "ec2:DetachVpnGateway",
-                                                "ec2:DeleteTags"
-                                        ],
-                                        "Resource": ["*"]
-                                },
-                                {
-                                        "Sid": "StateMachineActions",
-                                        "Effect": "Allow",
-                                        "Action": [
-                                                "states:ListExecutions",
-                                                "states:StartExecution"
-                                        ],
-                                        "Resource": ["*"]
-                                },
-                                {
-                                        "Sid": "Logs",
-                                        "Effect": "Allow",
-                                        "Action": [
-                                                "logs:CreateLogGroup",
-                                                "logs:CreateLogStream",
-                                                "logs:PutLogEvents"
-                                        ],
-                                        "Resource": ["*"]
-                                },
-                                {
-                                        "Sid": "S3Actions",
-                                        "Effect": "Allow",
-                                        "Action": [
-                                                "s3:GetBucketAcl",
-                                                "s3:GetBucketLocation",
-                                                "s3:GetObject",
-                                                "s3:GetObjectAcl",
-                                                "s3:ListBucket",
-                                                "s3:PutObject",
-                                                "s3:PutObjectAcl",
-                                                "s3:PutObjectTagging"
-                                        ],
-                                        "Resource": ["*"]
-                                },
-                                {
-                                        "Sid": "DynamoDbActions",
-                                        "Effect": "Allow",
-                                        "Action": [
-                                                "dynamodb:BatchGetItem",
-                                                "dynamodb:BatchWriteItem",
-                                                "dynamodb:CreateTable",
-                                                "dynamodb:DeleteItem",
-                                                "dynamodb:DescribeLimits",
-                                                "dynamodb:DescribeTable",
-                                                "dynamodb:GetItem",
-                                                "dynamodb:GetRecords",
-                                                "dynamodb:ListTables",
-                                                "dynamodb:PutItem",
-                                                "dynamodb:Query",
-                                                "dynamodb:Scan",
-                                                "dynamodb:TagResource",
-                                                "dynamodb:UpdateItem",
-                                                "dynamodb:UpdateTable"
-                                        ],
-                                        "Resource": ["*"]
-                                },
-                                {
-                                        "Sid": "SQSActions",
-                                        "Effect": "Allow",
-                                        "Action": [
-                                                "sqs:ChangeMessageVisibility",
-                                                "sqs:DeleteMessage",
-                                                "sqs:GetQueueUrl",
-                                                "sqs:ListQueues",
-                                                "sqs:ReceiveMessage",
-                                                "sqs:SendMessage"
-                                        ],
-                                        "Resource": ["*"]
-                                },
-                                {
-                                        "Sid": "SNSACtions",
-                                        "Effect": "Allow",
-                                        "Action": [
-                                                "sns:Publish"
-                                        ],
-                                        "Resource": ["*"]
-                                }
-                        ]
+        "Type": "AWS::IAM::Policy",
+        "Properties": {
+            "PolicyName": {"Fn::Join": ["-", ["TransitLambdaExecutionPolicy", { "Ref": "AWS::StackName" }]]},
+            "Roles": [{"Ref": "LambdaExecutionRole"}],
+            "PolicyDocument": {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Sid": "STSAccumRole",
+                        "Effect": "Allow",
+                        "Action": ["sts:AssumeRole"],
+                        "Resource": ["*"]
+                    },
+                    {
+                        "Sid": "InvokeLambda",
+                        "Effect": "Allow",
+                        "Action": ["lambda:Invoke","lambda:InvokeFunction"],
+                        "Resource": ["*"]
+                    },
+                    {
+                        "Action": ["iam:UpdateAssumeRolePolicy","iam:GetRole","iam:PassRole"],
+                        "Resource": ["*" ],
+                        "Effect": "Allow",
+                        "Sid": "IAMActions"
+                    },
+                    {
+                         "Action": ["cloudformation:*"],
+                         "Resource": ["*"],
+                         "Effect": "Allow",
+                         "Sid": "CloudFormationActions"
+                    },
+                    {
+                         "Action": ["ec2:*"],
+                         "Resource": ["*"],
+                         "Effect": "Allow",
+                         "Sid": "EC2FullAccess"
+                    },
+                    {
+                        "Sid": "StateMachineActions",
+                        "Effect": "Allow",
+                        "Action": ["states:ListExecutions","states:StartExecution"],
+                        "Resource": ["*"]
+                    },
+                    {
+                        "Sid": "Logs",
+                        "Effect": "Allow",
+                        "Action": ["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents"],
+                        "Resource": ["*"]
+                    },
+                    {
+                        "Sid": "S3Actions",
+                        "Effect": "Allow",
+                        "Action": ["s3:GetBucketAcl","s3:GetBucketLocation","s3:GetObject","s3:GetObjectAcl","s3:ListBucket","s3:PutObject","s3:PutObjectAcl","s3:PutObjectTagging", "s3:DeleteBucket", "s3:DeleteBucketPolicy", "s3:DeleteObject"],
+                        "Resource": ["*"]
+                    },
+                    {
+                        "Sid": "DynamoDbActions",
+                        "Effect": "Allow",
+                        "Action": ["dynamodb:CreateTable","dynamodb:DeleteItem","dynamodb:DescribeTable","dynamodb:GetItem","dynamodb:GetRecords","dynamodb:ListTables","dynamodb:PutItem","dynamodb:Query","dynamodb:Scan","dynamodb:TagResource","dynamodb:UpdateItem","dynamodb:UpdateTable"],
+                        "Resource": ["*"]
+                    },
+                    {
+                        "Sid": "SQSActions",
+                        "Effect": "Allow",
+                        "Action": ["sqs:ChangeMessageVisibility","sqs:DeleteMessage","sqs:GetQueueUrl","sqs:ListQueues","sqs:ReceiveMessage","sqs:SendMessage"],
+                        "Resource": ["*"]
+                    },
+                    {
+                        "Sid": "SNSACtions",
+                        "Effect": "Allow",
+                        "Action": ["sns:Publish"],
+                        "Resource": ["*"]
+                    }
+                ]
+            }
         }
-      }
     },
     "SubscrierStateMachine": {
       "Type": "AWS::StepFunctions::StateMachine",
@@ -635,8 +596,8 @@
                         "},",
                         "{",
                         "\"Variable\" : \"$.Action\",",
-                        "\"StringEquals\" : \"CreateVpc\",",
-                        "\"Next\" : \"CreateVpc\"",
+                        "\"StringEquals\" : \"CreateVpnConnection\",",
+                        "\"Next\" : \"CreateVpnConnection\"",
                         "},",
                         "{",
                         "\"Variable\" : \"$.Action\",",
@@ -661,13 +622,13 @@
                         "],",
                         "\"Default\" : \"DefaultState\"",
                         "},",
-                        "\"CreateVpc\": {",
+                        "\"CreateVpnConnection\": {",
                         "\"Type\" : \"Task\",",
                         {
-                                "Fn::Sub": "\"Resource\" : \"${CreateVpcLambda.Arn}\","
+                                "Fn::Sub": "\"Resource\" : \"${CreateVpnConnectionLambda.Arn}\","
                         },
                         "\"Next\": \"FetchFromSubscriberQueue\"",
-                        "},", 
+                        "},",
                         "\"ConfigureSubscribingVpcVpn\": {",
                         "\"Type\" : \"Task\",",
                         {

@@ -115,11 +115,19 @@ def lambda_handler(event, context):
     roleName =  event['ResourceProperties']['TransitAssumeRoleName']
     accountNumbers =  event['ResourceProperties']['SubscriberAccounts']
     transitConfig = event['ResourceProperties']['TransitConfig']
+    bucketName = event['ResourceProperties']['TransitVpnBucketName']
     bgpPool = event['ResourceProperties']['TransitBgpTunnelIpPool']
     vgwAsn = event['ResourceProperties']['TransitVgwAsn']
     paGropuInfo = event['ResourceProperties']['TransitPaGroupInfo']
     ipNetwork1 = event['ResourceProperties']['TransitVpcDmzAz1SubnetGateway']
     ipNetwork2 = event['ResourceProperties']['TransitVpcDmzAz2SubnetGateway']
+    checkStackStatusLambda = event['ResourceProperties']['CheckStackStatusLambda']
+    configureTransitVpnLambda = event['ResourceProperties']['ConfigureTransitVpnLambda']
+    rebalancePaGroupsLambda = event['ResourceProperties']['RebalancePaGroupsLambda']
+    deleteTransitVpnConfigurationLambda = event['ResourceProperties']['DeleteTransitVpnConfigurationLambda']
+    mgmtAz1 = event['ResourceProperties']['MgmtAz1SubnetId']
+    mgmtAz2 = event['ResourceProperties']['MgmtAz2SubnetId']
+
 
     ip1 = ipaddress.ip_network(ipNetwork1)
     ip2 = ipaddress.ip_network(ipNetwork2)
@@ -153,5 +161,43 @@ def lambda_handler(event, context):
             cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, "CustomResourcePhysicalID")
         else:
             cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, "CustomResourcePhysicalID")
-    else:
+    elif event['RequestType'] == 'Delete':
+        s3 = boto3.resource('s3')
+        bucket = s3.Bucket(bucketName)
+        bucket.objects.all().delete()
+        bucket.delete()
+        print("Successully Deleted S3 Objects and the Bucket: {}".format(bucketName))
+        try:
+            import time
+            lambda_conn = boto3.client('lambda')
+            lambda_conn.delete_function(FunctionName=checkStackStatusLambda)
+            lambda_conn.delete_function(FunctionName=configureTransitVpnLambda)
+            lambda_conn.delete_function(FunctionName=rebalancePaGroupsLambda)
+            lambda_conn.delete_function(FunctionName=deleteTransitVpnConfigurationLambda)
+            print("Deleted Lambda launched in VPCs")
+            ec2_conn = boto3.client('ec2')
+            filters = [{'Name':'subnet-id','Values':[mgmtAz1,mgmtAz2]}]
+            interfaces = ec2_conn.describe_network_interfaces(Filters=filters)['NetworkInterfaces']
+            if interfaces:
+                for interface in interfaces:
+                    print("Detaching Network Interface: {}".format(interface['NetworkInterfaceId']))
+                    ec2_conn.detach_network_interface(AttachmentId=interface['Attachment']['AttachmentId'])
+                    print("Detached Network Interface: {}".format(interface['NetworkInterfaceId']))
+            print("Sleeping for 5 seconds")
+            time.sleep(5)
+            if interfaces:
+                for interface in interfaces:
+                    print("Deleting Network Interface: {}".format(interface['NetworkInterfaceId']))
+                    ec2_conn.delete_network_interface(NetworkInterfaceId=interface['NetworkInterfaceId'])
+                    print("Deleted Network Interface: {}".format(interface['NetworkInterfaceId']))
+            print("Deleting Mmgt subnets: {},{}".format(mgmtAz1,mgmtAz2))
+            #ec2_conn.delete_security_group(GroupId=trustedSg)
+            ec2_conn.delete_subnet(SubnetId=mgmtAz1)
+            ec2_conn.delete_subnet(SubnetId=mgmtAz2)
+            #ec2_conn.delete_vpc(VpcId=vpcId)
+            print("Deleted Mmgt subnets: {},{}".format(mgmtAz1,mgmtAz2))
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, "CustomResourcePhysicalID")
+        except Exception as e:
+            print("Erro While deleting the Network Interfaces|TrustedSg|MgmtSubnets|Vpc. Error: {}".format(str(e)))
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, "CustomResourcePhysicalID")   
         cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, "CustomResourcePhysicalID")

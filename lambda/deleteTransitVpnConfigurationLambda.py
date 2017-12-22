@@ -22,6 +22,23 @@ def deleteItemFromVpcTable(tableName, vpcId):
     except Exception as e:
         logger.error("Error from deleteItemFromVpcTable, Error: {}".format(str(e)))
 
+def updateVgwAsn(tableName,vgwAsn):
+    """Updates Transit VgwAsn table attribute "InUse=NO"
+    """
+    try:
+        dynamodb = boto3.resource('dynamodb', region_name=region)
+        logger.info("VgwAsn TableName: {}, and typeofVgwAsn: {}".format(tableName,type(vgwAsn)))
+        table = dynamodb.Table(tableName)
+        response = table.query(KeyConditionExpression=Key('VgwAsn').eq(str(vgwAsn)))['Items']
+        if response:
+            item={'VgwAsn':str(vgwAsn),'InUse':'NO'}
+            table.put_item(Item=item)
+            logger.info("Successfully updated VgwAsn: {}, InUse=NO".format(vgwAsn))
+    except Exception as e:
+        logger.error("Error from updateVgwAsn(), Error: {}".format(str(e)))
+        #If the VGW was created by customer manually, we dont have that VgwAsn enrty in Transit VgwAsn table, hence we are throwing the error and proccedind
+        pass
+
 def updatePaGroupInfoTable(tableName,paGroupName):
     """Updates the Transit PaGroupInfo table  attribute VpcCount value to decremented by 1 (-1) by querying the table with PaGroupName
     """
@@ -36,23 +53,23 @@ def updatePaGroupInfoTable(tableName,paGroupName):
     except Exception as e:
         logger.error("Error from updatePaGroupInfoTable, Error: {}".format(str(e)))
 
-def updateBgpTunnleIpPool(tableName,paGroupName):
+def updateBgpTunnleIpPool(tableName,vpcId):
     """Updates the Transit BgpTunnleIpPool attributes Available=YES, VpcId=Null and PaGroupName=Null
     """
     try:
         dynamodb = boto3.resource('dynamodb', region_name=region)
         table = dynamodb.Table(tableName)
-        response = table.scan(FilterExpression=Attr('PaGroupName').eq(paGroupName))
+        response = table.scan(FilterExpression=Attr('VpcId').eq(vpcId))
         LastEvaluatedKey = True
         while LastEvaluatedKey:
             for item in response['Items']:
-                if 'PaGroupName' in item:
-                    if item['PaGroupName']==paGroupName:
+                if 'VpcId' in item:
+                    if item['VpcId']==vpcId:
                         table.update_item(Key={'IpSegment':item['IpSegment']},AttributeUpdates={'Available':{'Value':'YES','Action':'PUT'},'VpcId':{'Value':'Null','Action':'PUT'},'PaGroupName':{'Value':'Null','Action':'PUT'}})
                         logger.info("Successfully updated IpSegment: {} attriburte Available to YES, and VpcId & PaGroup to Null".format(item['IpSegment']))
                         return
             if 'LastEvaluatedKey' in response:
-                response = table.scan(FilterExpression=Attr('PaGroupName').eq(paGroupName),ExclusiveStartKey=response['LastEvaluatedKey'])
+                response = table.scan(FilterExpression=Attr('VpcId').eq(vpcId),ExclusiveStartKey=response['LastEvaluatedKey'])
             else:
                 LastEvaluatedKey = False
     except Exception as e:
@@ -106,7 +123,8 @@ def lambda_handler(event,context):
                     #Delete Item from TransitVpcTable with 
                     deleteItemFromVpcTable(config['TransitVpcTable'],event['VpcId'])
                     updatePaGroupInfoTable(config['TransitPaGroupInfo'],vpcResult['PaGroupName'])
-                    updateBgpTunnleIpPool(config['TransitBgpTunnelIpPool'], vpcResult['PaGroupName'])
+                    updateBgpTunnleIpPool(config['TransitBgpTunnelIpPool'], event['VpcId'])
+                    if 'VgwAsn' in event: updateVgwAsn(config['TransitVgwAsn'],event['VgwAsn'])
         else:
             logger.error("Not Received any data from TransitConfig table")
     except Exception as e:

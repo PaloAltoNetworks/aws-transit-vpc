@@ -77,17 +77,31 @@ def fetchFromQueue(sqsQueueUrl):
     except Exception as e:
         logger.error("Fetching from {} Queue is Failed, Error {}".format(sqsQueueUrl,str(e)))
         #return False
+
+def deleteVgw(vgwId,vpcId,awsRegion):
+    """Detache and Deletes the VGW from VPC
+    """
+    try:
+        ec2_conn =boto3.client('ec2',region_name=awsRegion)
+        response = ec2_conn.describe_vpn_gateways(VpnGatewayIds=[vgwId])['VpnGateways']
+        if response:
+            ec2_conn.detach_vpn_gateway(VpnGatewayId=vgwId, VpcId=vpcId)
+            logger.info("Detached VGW: {} from Vpc: {}".format(vgwId,vpcId))
+            ec2_conn.delete_vpn_gateway(VpnGatewayId=vgwId)
+            logger.info("Deleted VGW: {}".format(vgwId))
+            return response[0]['AmazonSideAsn']
+    except Exception as e:
+        logger.error("Error in deleteVgw(), Error: {}".format(str(e)))
+        pass
+
 def isVgwAttachedToVpc(vpcId,awsRegion):
     """Verifies whether the VPC has any VGW attached, return either VgwId or False
     """
     try:
         ec2_conn = boto3.client('ec2', region_name=awsRegion)
-        filters = [{'Name':'attachment.vpc-id','Values':[vpcId]}]
+        filters = [{'Name':'attachment.vpc-id','Values':[vpcId]}, {'Name':'attachment.state','Values':['attached']}]
         response = ec2_conn.describe_vpn_gateways(Filters=filters)['VpnGateways']
-        if response: 
-            if response[0]['State']!='deleted':
-                return response[0]['VpnGatewayId']
-            else: return False
+        if response: return response[0]
         else: return False
     except Exception as e:
         logger.error("Error in isVgwAttachedToVpc(), Error: {}".format(str(e)))
@@ -102,12 +116,14 @@ def checkCgw(awsRegion, n1Eip, n2Eip):
         response = ec2_conn.describe_customer_gateways(Filters=filters)['CustomerGateways']
         if response:
             for cgw in response:
-                cgwIds.append(cgw['CustomerGatewayId'])
+                if cgw['State']=='available':
+                    cgwIds.append(cgw['CustomerGatewayId'])
         filters = [{'Name':'ip-address','Values':[n2Eip]}]
         response = ec2_conn.describe_customer_gateways(Filters=filters)['CustomerGateways']
         if response:
             for cgw in response:
-                cgwIds.append(cgw['CustomerGatewayId'])
+                if cgw['State']=='available':
+                    cgwIds.append(cgw['CustomerGatewayId'])
         if cgwIds:
             return cgwIds
         else:

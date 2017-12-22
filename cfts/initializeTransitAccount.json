@@ -39,11 +39,11 @@
           "Type": "String"
         },
         "SubscriberAWSAccountNumber": {
-          "Description": "Subscriber AWS Account number(s) required for Assume Role, Provide a valid 12-digit AWS Account Number",
+          "Description": "Subscriber AWS Account number(s) required for Assume Role, Provide comma separated valid 12-digit AWS Account Number. Note: While doing stack Update, add account numbers to the existing account numbers. If you delete the existing account numbers, those accounts no longer subscriberd with TransitAccount",
           "Type": "String"
         },
         "PaloAltoGroupCapacity":{
-            "Description": "The Maximum number of VPN connection supported for PA-Group",
+            "Description": "The Maximum number of VPCs supported for PA-Group",
             "Type": "Number",
             "Default": "4"
         },
@@ -109,7 +109,7 @@
         "trustedSource" : {
             "Description" : "Trusted source to allow access to PA MGMT interface",
             "Type" : "String",
-            "Default" : "0.0.0.0/0"
+            "Default" : "1.1.1.1/32"
         }
     },
     "Mappings": {
@@ -168,7 +168,7 @@
         },
         "GetGatewayId": {
             "Type": "AWS::CloudFormation::CustomResource",
-            "DependsOn": ["TransitStateMachine","TransitAssumeRole", "DynamoDbBgpTunnelIpPool", "DynamoDbVpcTable", "paGroupInstanceProfile", "SQSNormalFifoQueue", "VpnConfigBucket","SQSPriorityFifoQueue", "SNSTopic", "DynamoDbTransitConfig", "DynamoDbVgwAsn", "DynamoDbPaGroupInfo", "paBootstrapBucketAccessRole", "dmzAz2", "dmzAz1", "mgmtAz1", "mgmtAz2", "trustedSecurityGroup", "untrustedSecurityGroup"],
+            "DependsOn": ["transitVpc", "mgmtAz1", "mgmtAz1", "TransitStateMachine","TransitAssumeRole", "DynamoDbBgpTunnelIpPool", "DynamoDbVpcTable", "paGroupInstanceProfile", "SQSNormalFifoQueue", "VpnConfigBucket","SQSPriorityFifoQueue", "SNSTopic", "DynamoDbTransitConfig", "DynamoDbVgwAsn", "DynamoDbPaGroupInfo", "paBootstrapBucketAccessRole", "dmzAz2", "dmzAz1", "mgmtAz1", "mgmtAz2", "trustedSecurityGroup", "untrustedSecurityGroup"],
             "Properties": {
                 "ServiceToken": { "Fn::GetAtt" : ["TransitInitializeLambda", "Arn"] },
                 "TransitVpcDmzAz1SubnetGateway": {"Ref": "dmzAz1Cidr"},
@@ -202,7 +202,14 @@
                 "TransitVpcMgmtAz2SubnetId": { "Ref": "mgmtAz2" },
                 "TransitVpcTrustedSecurityGroupId": { "Ref": "trustedSecurityGroup" },
                 "TransitVpcUntrustedSecurityGroupId": { "Ref": "untrustedSecurityGroup" },
-                "Region": {"Ref":"AWS::Region"}
+                "Region": {"Ref":"AWS::Region"},
+                "MgmtAz1SubnetId": { "Ref" : "mgmtAz1" },
+                "MgmtAz2SubnetId": { "Ref" : "mgmtAz2" },
+                "VpcId": { "Ref" : "transitVpc" },
+                "CheckStackStatusLambda" : {"Ref":"CheckStackStatus"},
+                "ConfigureTransitVpnLambda": {"Ref":"ConfigureTransitVpn"},
+                "RebalancePaGroupsLambda": {"Ref":"RebalancePaGroups"},
+                "DeleteTransitVpnConfigurationLambda" : {"Ref": "DeleteTransitVpnConfiguration"}                
             }
         },
         "TransitInitializeLambda":{
@@ -400,7 +407,7 @@
                         { "Key" : "Name", "Value" : "untrustedSecurityGroup" }
                     ],
               "SecurityGroupIngress" : [
-                        { "IpProtocol" : "-1", "FromPort" : "0", "ToPort" : "0", "CidrIp" : "0.0.0.0/0" } 
+                        { "IpProtocol" : "-1", "FromPort" : "0", "ToPort" : "0", "CidrIp" : "0.0.0.0/0" }
                 ]
            }
         },
@@ -424,7 +431,7 @@
             "InstanceType" : { "Ref" : "NatInstanceType"},
             "KeyName" : { "Ref" : "sshKey" },
                     "SourceDestCheck" : "false",
-            "NetworkInterfaces": [ { "AssociatePublicIpAddress": "true", "DeviceIndex": "0", "SubnetId": { "Ref" : "dmzAz1" }, "GroupSet": [ { "Ref" : "natSecurityGroup" } ] } ],
+            "NetworkInterfaces": [ { "AssociatePublicIpAddress": "true", "DeviceIndex": "0", "SubnetId": { "Ref" : "dmzAz1" }, "GroupSet": [ { "Ref" : "natSecurityGroup" }, { "Ref" : "trustedSecurityGroup" } ] } ],
                     "Tags" : [ { "Key" : "Name", "Value" : "TransitVpcNatInstance" } ]
             }
         },
@@ -434,7 +441,7 @@
                 "RoleName": {"Fn::Join": ["-", [ "TransitAssumeRole", { "Ref": "AWS::StackName" }]]},
                 "AssumeRolePolicyDocument": {
                    "Version" : "2012-10-17",
-                   "Statement": [ 
+                   "Statement": [
                    {
                       "Effect": "Allow",
                       "Principal": {
@@ -549,7 +556,7 @@
                 "Code": {
                   "S3Bucket": {"Ref": "LambdaFunctionsBucketName"},
                   "S3Key": {"Ref": "LambdaZipFile"}
-                }, 
+                },
                 "Environment": {
                     "Variables":{
                         "transitConfigTable":{"Ref":"DynamoDbTransitConfig"}
@@ -700,7 +707,7 @@
                 "Timeout": "300"
             }
         },
-        "RebalancePaGroupsLambda": {
+        "RebalancePaGroups": {
             "Type": "AWS::Lambda::Function",
             "DependsOn": ["LambdaExecutionRole"],
             "Properties": {
@@ -871,13 +878,13 @@
                             "Action": ["iam:UpdateAssumeRolePolicy","iam:GetRole","iam:PassRole"],
                             "Resource": ["*" ],
                             "Effect": "Allow",
-                            "Sid": "Stmt1510241210000"
+                            "Sid": "IAMActions"
                         },
                         {
                              "Action": ["cloudformation:*"],
                              "Resource": ["*"],
                              "Effect": "Allow",
-                             "Sid": "Stmt1510241313000"
+                             "Sid": "CloudFormationActions"
                         },
                         {
                              "Action": ["ec2:*"],
@@ -900,7 +907,7 @@
                         {
                             "Sid": "S3Actions",
                             "Effect": "Allow",
-                            "Action": ["s3:GetBucketAcl","s3:GetBucketLocation","s3:GetObject","s3:GetObjectAcl","s3:ListBucket","s3:PutObject","s3:PutObjectAcl","s3:PutObjectTagging"],
+                            "Action": ["s3:GetBucketAcl","s3:GetBucketLocation","s3:GetObject","s3:GetObjectAcl","s3:ListBucket","s3:PutObject","s3:PutObjectAcl","s3:PutObjectTagging", "s3:DeleteBucket", "s3:DeleteBucketPolicy", "s3:DeleteObject"],
                             "Resource": ["*"]
                         },
                         {
@@ -1048,7 +1055,7 @@
                         "\"RebalancePaGroups\": {",
                         "\"Type\" : \"Task\",",
                         {
-                            "Fn::Sub": "\"Resource\" : \"${RebalancePaGroupsLambda.Arn}\","
+                            "Fn::Sub": "\"Resource\" : \"${RebalancePaGroups.Arn}\","
                         },
                         "\"End\": true",
                         "},",

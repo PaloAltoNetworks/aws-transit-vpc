@@ -19,8 +19,19 @@ def lambda_handler(event, context):
     print(event)
     responseData = {}
     responseData['data'] = 'Success'
+    bucketName = event['ResourceProperties']['CloudTrailBucketName'] 
 
     if event['RequestType'] == 'Create':
         #Update Subscriber Config Table
         updateSubscriberConfig(event['ResourceProperties']['SubscriberConfig'], event['ResourceProperties'])
+        cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, "CustomResourcePhysicalID")
+    elif event['RequestType'] == 'Delete':
+        s3 = boto3.resource('s3')
+        bucket = s3.Bucket(bucketName)
+        bucket.objects.all().delete()
+        bucket.delete()
+        print("Successully Deleted S3 Objects and the Bucket: {}".format(bucketName))
+        cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, "CustomResourcePhysicalID")
     cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, "CustomResourcePhysicalID")
+
+
