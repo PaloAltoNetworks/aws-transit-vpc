@@ -76,25 +76,25 @@
         "paBootstrapBucketName" : {
             "Description" : "Instance profile to attach to PA group nodes",
             "Type" : "String",
-            "Default": "pa-bootstrap-jayan-01"
+            "Default": ""
         }
    },
    "Mappings": {
         "PAVMAMI": {
-            "us-east-1": {"AMI": "ami-34ca984f"},
-            "us-west-2": {"AMI": "ami-7e8a9107"},
-            "us-east-2": {"AMI": "ami-765e7e13"},
-            "us-west-1": {"AMI": "ami-be88a1de"},
-            "ca-central-1": {"AMI": "ami-0504bb61"},
-            "eu-west-1": {"AMI": "ami-1c28c065"},
-            "eu-west-2": {"AMI": "ami-c76d7ca3"},
-            "eu-central-1": {"AMI": "ami-44f25e2b"},
-            "ap-southeast-1": {"AMI": "ami-0994066a"},
-            "ap-southeast-2": {"AMI": "ami-2ed3cc4d"},
-            "ap-northeast-1": {"AMI": "ami-8705e6e1"},
-            "ap-northeast-2": {"AMI": "ami-48bc6526"},
-            "ap-south-1": {"AMI": "ami-38fd8557"},
-            "sa-east-1": {"AMI": "ami-38641354"}
+            "us-east-1": {"AMI": "ami-69a2f513"},
+            "us-west-2": {"AMI": "ami-725ef50a"},
+            "us-east-2": {"AMI": "ami-66183303"},
+            "us-west-1": {"AMI": "ami-a29a9bc2"},
+            "ca-central-1": {"AMI": "ami-50cb4e34"},
+            "eu-west-1": {"AMI": "ami-fc4fdb85"},
+            "eu-west-2": {"AMI": "ami-e9dcc48d"},
+            "eu-central-1": {"AMI": "ami-a1ad3dce"},
+            "ap-southeast-1": {"AMI": "ami-5ef78022"},
+            "ap-southeast-2": {"AMI": "ami-059f6d67"},
+            "ap-northeast-1": {"AMI": "ami-b5af32d3"},
+            "ap-northeast-2": {"AMI": "ami-32f3535c"},
+            "ap-south-1": {"AMI": "ami-f9005496"},
+            "sa-east-1": {"AMI": "ami-fb86c597"}
         }
     },
   "Resources" : {
