@@ -2,7 +2,7 @@
 
 The solution deploys transit VPC in AWS.
 
-![alt text](images/topology.png "Topology")
+![alt_text](documentation/images/topology.png "topology")
 
 # Deployment guide
 The deployment guide can be found [here](https://github.com/PaloAltoNetworks/aws-transit-vpc/blob/master/documentation/AWS_Transit_VPC_deployment_guide.pdf)
