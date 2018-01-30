@@ -4,7 +4,7 @@
         "AWS::CloudFormation::Interface": {
           "ParameterGroups": [
             { "Label": { "default": "Required Parameters" }, "Parameters": [ "TransitSNSTopicArn", "TransitAssumeRoleArn", "TransitAWSAccountNumber", "LambdaFunctionsBucketName", "CloudTrailS3BucketName", "SshKey", "az1", "az2" ] },
-            { "Label": { "default": "Default Parameters" }, "Parameters": [ "LaunchSubscriberVpc", "LambdaZipFile", "VpcCidrRange", "SubnetCidr1", "SubnetCidr2", "SubnetCidr3", "SubnetCidr4" ] }
+            { "Label": { "default": "Default Parameters" }, "Parameters": [ "LaunchSubscriberVpc", "LambdaZipFile", "VpcCidrRange", "SubnetCidr1", "SubnetCidr2", "SubnetCidr3", "SubnetCidr4" , "trustedSource"] }
           ]
         }
     },
@@ -79,6 +79,11 @@
     "SshKey" : {
         "Description" : "SSH key to associate with NAT Server in NewVPC",
         "Type" : "AWS::EC2::KeyPair::KeyName"
+    },
+    "trustedSource" : {
+        "Description" : "Trusted source to allow access to PA MGMT interface",
+        "Type" : "String",
+        "Default" : "1.1.1.1/32"
     }
   },
   "Conditions": {
@@ -741,7 +746,8 @@
                 "subnetCidrRange3": {"Ref": "SubnetCidr3"},
                 "subnetCidrRange4": {"Ref": "SubnetCidr4"},
                 "AvailabilityZone1": {"Ref": "az1"},
-                "AvailabilityZone2": {"Ref": "az2"}
+                "AvailabilityZone2": {"Ref": "az2"},
+                "trustedSource": {"Ref": "trustedSource"}
             },
             "TemplateURL" : { "Fn::Join": ["/", ["https://s3.amazonaws.com", {"Ref":"LambdaFunctionsBucketName"}, "subscriberVpcCft.json"]]}
         },
