@@ -1,6 +1,6 @@
 # AWS Transit VPC
 
-The solution deploys transit VPC in AWS.
+The solution deploys a secured Transit VPC in AWS.  This allows you to secure many spoke or subscribing VPCs using centralized VM-Series firewalls in the transit/hub VPC.  This solution will secure traffic between VPCs, between a VPC and an on-prem/hybrid cloud resource, and outbound traffic.  Securing outbound traffic in the Transit VPC allows you to allow safely enabled access to the Internet for tasks like software installs and patches without backhauling the traffic to an on prem-firewall for security.
 
 ![alt_text](documentation/images/topology.png "topology")
 
