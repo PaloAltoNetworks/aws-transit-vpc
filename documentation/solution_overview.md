@@ -249,12 +249,12 @@ NOTE: Details about what these lambda function does can be found in file [Lambda
 
 ### Rebalance mechanism
 
-Rebalance is basically adjusting the PaGropus based on its capacity and available VPCs
-In Rebalance mechanism we move VPN connections from one PaGroup(lowest capacity) to other PaGroup(near highest capacity), so that we can remove the unused PaGroups hence reduce the cost
-Rebalance mechanism can be triggered maually by running the initializeRebalanaceLambda function or can be run as cron job
+Rebalancing is basically adjusting the PaGroups based on capacity, and available VPCs.
+In the Rebalance mechanism, we move VPN connections from one PaGroup(lowest capacity) to the other PaGroup(near highest capacity), so that we can remove the unused PaGroups hence reduce the cost.
+The Rebalance mechanism can be triggered maually by running the initializeRebalanaceLambda function or as a cron job
 
-- When Rebalance is in progress no other create operations get precedence, Rebalance operations will be pushed to delete queue (HighPriorityQueue) based on the "Rebalance" key in the json event, if Rebalance==True it will be send to delete queue gets high priority over Create operations
-- RebalancePaGropusLambda function is the heart of the Rebalance Mechanism, it performs the rebalance functionality based on the "RebalanceInProgress" and "RebalanceStatus" values present in the TransitCongfig table, these two values are put into TransitConfig table by initializeRebalanceLambda function
+- When Rebalance is in progress no other create operations get precedence, Rebalance operations will be pushed to the delete queue (HighPriorityQueue) based on the "Rebalance" key in the json event, if Rebalance==True it will send to the delete queue and gets a higher priority over Create operations
+- RebalancePaGropusLambda function is the heart of the Rebalance Mechanism, it performs the rebalance functionality based on the "RebalanceInProgress" and "RebalanceStatus" values present in the TransitCongfig table, these two values are put into the TransitConfig table by initializeRebalanceLambda function
 - The logic is explained as below
 
 ```
