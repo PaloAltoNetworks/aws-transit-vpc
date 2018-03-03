@@ -2,10 +2,10 @@
 
 ## Brief description about the solution
 This solution automates the Transit VPC solution with VM-Series. In the Transit VPC solution with VM-Series there are two VPCs.
- 1. A HUB VPC where Palo Alto Firewall devises will be deployed
+ 1. A HUB VPC where Palo Alto Firewall VM-Series firewalls will be deployed
  2. One or more Spoke VPCs located in one or more AWS accounts, where workloads are deployed
 
-All Spoke VPCs are connected to Palo Alto Firewall located in HUB VPC. All Spoke VPCs can talk to each other by transiting over Palo Alto (PA) servers located in HUB VPC. For redundancy, there will be a pair of PA server attached to a VPC and each of the node in the pair will be located in a different availability zone.
+All Subscriber VPCs are connected to the Firewalls located in the Transit VPC via IPsec tunnel. All Subscriber VPCs can talk to each other by transiting over the VM-Series located in Transit VPC when you enable route propagation on the AWS Subscriber private route table. For redundancy, the VM-Series firewalls will be located in a different availability zone.
 
 ## Architecture Diagram
 ![alt text](images/detailed-flowchart.png "Architecture Diagram")
