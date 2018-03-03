@@ -245,7 +245,7 @@ The Subscriber State machine is built using AWS Step functions. The Subscriber S
 | DeleteVpnConnection         | <This is probably deleted?>      |
 **Review Above Table**
 
-NOTE: Details about what these lambda function does can be found in file  [LambdaFunction Description}(https://github.com/PaloAltoNetworks/aws-transit-vpc/blob/master/documentation/lambdafunctions-description.md)
+NOTE: Details about what these lambda function does can be found in file [LambdaFunction Description](https://github.com/PaloAltoNetworks/aws-transit-vpc/blob/master/documentation/lambdafunctions-description.md)
 
 ### Rebalance mechanism
 
