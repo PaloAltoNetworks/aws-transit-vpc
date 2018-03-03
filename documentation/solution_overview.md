@@ -22,32 +22,32 @@ It is triggered when you change/delete the tag "subscribingVpc" tag from an AWS 
 
 2. Each PA Group (acts as a single logical unit and has two nodes in two az's for redundancy) has a limit on maximum number of VPCs (X) it can establish a VPN with. When number of VPC exceeds the maximum limit that can be supported by existing number of PA Groups, a new PA Group should be created.
 
-3. When a new Subscriber VPC is created, it should automatically get associated with a PA group which has capacity
+3. When a new Subscriber VPC is created, it should automatically get associated with a PA group which has capacity.
 
-4. When new PA Groups are created to support new VPCs, each node of the newly created PA Group should establish BGP peer with nodes associated with other PA groups which belong to the same AZ
+4. When new PA Groups are created to support new VPCs, each node of the newly created PA Group should establish BGP peer with nodes associated with other PA groups which belong to the same AZ.
 
-5. To avoid traffic from Subscribing VPC to pass through both the VPN tunnels (tunnel to Node1 and Node2 of the PA group it is associated with), BGP configuration on one of the node should have an MED value set that is different from the other. To satisfy this requirement, node1 of all PA group will be using "active" bgp peer group and node2 will be using "passive" bgp peer group. The difference between these peer groups is that "passive" peer group has an MED value set and "active" does not
+5. To avoid Subscribing VPC traffic passing through both the VPN tunnels asymmetrically (tunnel to Node1 and Node2 of the PA group it is associated with), BGP configuration on one of the VM-Series should have an MED value set that is different from the other. To satisfy this requirement, node1 of all PA group will be using "active" bgp peer group and node2 will be using "passive" bgp peer group. The difference between these peer groups is that "passive" peer group has an MED value set and "active" does not.
 
-6. Minimum manual steps from a customer who want to setup this system
+6. Minimum steps are needed to setup this system.
 
-7. Un subscription from the system should be automatic
+7. Un-Subscribing from the Transit VPC should be automatic.
 
-8. System should not spin up new PA (or PA Group) if existing system have capacity to host new VPC
+8. The Transit VPC should not spin up new PA (or PA Group) if the existing system has the capacity to host a new VPC.
 
-9. When configuring AWS VPN, AWS allocates /30 ip ranges for each tunnel associated with a VPN GW. There could be conflict if subscribers are from different region or from different AWS accounts.
+9. When configuring AWS VPN, AWS allocates /30 ip ranges for each tunnel associated with a VPN GW. There could be conflict if subscribers are from different region or from different AWS accounts. No Overlapping subnets are allowed. 
 
-10. To avoid conflict, each PA node should have unique ASN
+10. To avoid conflict, each VM-Series should have a unique ASN
 
-11. To avoid conflict, each VGW associated with subscribing VPC should have unique ASN
+11. To avoid conflict, each VGW associated with a subscribing VPC should have a unique ASN
 
 ## Design Overview
-This system can be split into two logical pieces
-1. Task  
+This system can be split into three logical pieces
+1. Task and Action
 2. Transit system
 3. Subscriber system
 
 ### Task and Action
-Task is a JSON object exchanged between Transit system and subscriber system or between states within a system. The Task has information about next operation (Action) to be performed and data needed to perform next operation. One or lambda function associated with State machine will execute the "Action" defined by the "Task"
+Task is a JSON object exchanged between the Transit VPC and Subscriber VPC, or between states within a system. The Task has information about the next operation (Action) to be performed, and the data needed to perform the next operation. One or lambda functions associated with the State machine will execute the "Action" defined by the "Task"
 
 eg:
 {
