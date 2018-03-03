@@ -1,7 +1,7 @@
-# Solution Overview
+# Transit VPC with VM-Series Solution Overview
 
 ## Brief description about the solution
-This solution automates baseline Firewall Services VPC solution. In baseline Firewall services VPC there are two VPCs.
+This solution automates the Transit VPC solution with VM-Series. In the Transit VPC solution with VM-Series there are two VPCs.
  1. A HUB VPC where Palo Alto Firewall devises will be deployed
  2. One or more Spoke VPCs located in one or more AWS accounts, where workloads are deployed
 
