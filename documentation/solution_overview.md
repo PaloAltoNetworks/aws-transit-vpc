@@ -1,4 +1,4 @@
-# Transit VPC with VM-Series Solution Overview
+# Transit VPC with VM-Series Overview
 
 ## About
 This solution automates the Transit VPC solution with VM-Series. In the Transit VPC solution with VM-Series there are two VPCs.
