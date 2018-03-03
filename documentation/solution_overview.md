@@ -168,21 +168,16 @@ This is a FIFO Queue created during initialization of the Transit VPC. All new "
 This is a FIFO Queue created during initialization of the Transit VPC. All new "Create tasks" which are not related to Rebalancing will be pushed to this task. All tasks in this queue will be processed after the high priority queue is empty and after completion of the Rebalance operation if it is in progress.
 
 ##### Transit State machine (AWS Stepfunction)
-Transit State machine is built using AWS Step functions. Transit State machine will be started by TransitDeciderLambda and makes sure that only one instance of Transit State machine is running at any point in time. Once started it fetches one Task at a time from HighPriorityQueue and process them till queue is empty. Once HighPriorityQueue is empty, it checks whether Rebalance is in progress by checking for a key-value pair in DynamoDB which indicates whehter Rebalance is in progress or not (Rebalance = Yes). If there is an ongoing Rebalance, Transit
-
-
-
-
+The Transit State machine is built using AWS Step functions. The Transit State machine will be started by TransitDeciderLambda and makes sure that only one instance of Transit State machine is running at all times. Once started, it fetches one task at a time from the HighPriorityQueue and processes them until the queue is empty. Once the HighPriorityQueue is empty, it checks whether the Rebalance function is in progress. It performs this by checking for a key-value pair in the DynamoDB table which indicates whether Rebalancing is in progress, or not in progress (Rebalance = Yes).
 
 ### Subscriber system
-This logical system takes care of automatically configuring VPN at the "subscriber" side. Following are few tasks done by Subscriber system
+This logical system takes care of automatically configuring the VPN at the "Subscriber" VPC. The following are few tasks done by Subscriber system
 - Detect VPC creation
 - Gather information needed to configure VPN with PA group
 - Create VGW, CGW, IPSec VPN configuration
-- Notify transit system with VPN configuration information so that Transit system can complete VPN configuration
+- Notify the transit VPC with VPN configuration information so that Transit VPC can complete VPN configuration
 - Detect VPN delete operation and trigger VPN delete operation from Transit system
 
-[Diagram here]
 
 #### Components of Subscriber system
 1. Subscriber SNS
@@ -195,16 +190,16 @@ This logical system takes care of automatically configuring VPN at the "subscrib
 8. Subscriber State machine
 
 ##### Subscriber SNS
-Subscriber SNS is an SNS created as part of Subscriber environment setup. Transit system communicates with subscruber system by sending notification to SubscriberSns. It is also connected to SubscriberDecider Lambda, so any new notification will trigger SubscriberDecider Lambda
+The Subscriber SNS is an SNS created as part of the Subscriber VPC setup. The Transit VPC communicates with the Subscriber VPC by sending notifications to SubscriberSns. It is also connected to SubscriberDecider Lambda, so any new notifications will trigger SubscriberDecider Lambda
 
 ##### CloudTrail and CloudTrailLambda
-CloudTrail logging will be enabled and configured to push logs to a new S3 bucket during the setup of Subscriber environment. CloudTrail pushes logs to the configured bucket every 5 minutes or so. Cloudtrail bucket is configured to trigger CloudTrailLambda which parses latest log file and look for any new "VPC Create" event and when it finds one, it creates a new Task and push that task to Subscriber SNS with action "DetectedCreateVpc" along with details about the VPC (VPC-ID, VPC-CIDR, etc.).
+CloudTrail logging will be enabled and configured to push logs to a new S3 bucket during the setup of Subscriber VPC. CloudTrail pushes logs to the configured bucket every 5 minutes or so. The Cloudtrail bucket is configured to trigger CloudTrailLambda which parses the latest log file and looks for any new "VPC Create" event. When it finds a new VPC Create evet, it creates a new Task and pushes that task to Subscriber SNS with action "DetectedCreateVpc" along with details about the VPC (VPC-ID, VPC-CIDR, etc.).
 
-CloudTrailLambda can also detect VPN delete operations and if the delete VPN was configured by the solution, it activates a chain of events by creating a Task in the Transit System which eventually removes VPN pair from PA Group as well as Subscribing AWS Account.
+CloudTrailLambda can also detect VPN delete operations and if the delete VPN was configured by the solution, it activates a chain of events by creating a Task in the Transit System which eventually removes the VPN pair from the PA Group as well as Subscribing AWS Account.
 
-NOTE 1: CloudTrail lambda can be easily modified to invoke configure vpn Task based on "Create Tag" event as well
+NOTE 1: CloudTrail lambda can be easily modified to invoke configure vpn Tasks based on a "Create Tag" event as well.
 
-NOTE 2: Every VPC will be connected to each node associated PA-Server group using IPSec VPN. This two IPSec configuration (to Node1, Node2 of PA Group associated with that VPC) is considered as single logical VPN connection to the transit system. Due to that reason, detection of one of the VPN configuration delete operation at Subscriber VPC will trigger both VPN configurations
+NOTE 2: Every VPC will be connected to each VM-Series in the PA group using IPSec VPN. This two IPSec VPN configuration (to Node1, Node2 of PA Group associated with that VPC) is considered as single logical VPN connection to the transit system. Due to this, any detection of a VPN delete operation at Subscriber VPC will trigger both VPN configurations to be deleted. 
 
 ##### SubscriberDecider Lambda
 SubscriberDecider lambda gets invoked whenever there is a new Task pushed on to Subscriber SNS. It takes the task and pushes it into SubscriberQueue and starts Subscriber state machine if it is not running.
@@ -235,10 +230,10 @@ SubscriberDecider lambda gets invoked whenever there is a new Task pushed on to 
 | TransitAssumeRoleArn      | arn:aws:iam::12345667489:role/TransitAssumeRole                               |
 
 ##### SubscriberQueue (DynamoDB Table)
-This is a FIFO Queue created during initialization of Subscriber account. New tasks that need to be handled by Subscriber State machine should be pushed on to this Queue.
+This is a FIFO Queue created during initialization of the Subscriber VPC. New tasks that need to be handled by the Subscriber State machine should be pushed to this Queue.
 
 ##### Subscriber State machine
-Subscriber State machine is built using AWS Step functions. Subscriber State machine will be started by SubscriberDeciderLambda and makes sure that only one instance of Subscriber State machine is running at any point in time. Once started it fetches one Task at a time from SubscriberQueue and process it till the Queue is empty this is done by executing "FetchFromSubscriberQueueLambda". Based on the 'Action' it will trigger that specific action related Lambda Function (ie., CreateVpc, ConfigureSubscribingVpcVpn,VpnConfigured etc.,). Following are the list of Tasks handled by Subscriber State machine and corresponding lambda function which gets invoked.
+The Subscriber State machine is built using AWS Step functions. The Subscriber State machine will be started by SubscriberDeciderLambda and makes sure that only one instance of the Subscriber State machine is running at all times. Once started, it fetches one Task at a time from SubscriberQueue and processes it until the Queue is empty. This is done by executing "FetchFromSubscriberQueueLambda". Based on the 'Action',  it will trigger that specific action related Lambda Function (ie., CreateVpc, ConfigureSubscribingVpcVpn,VpnConfigured etc.,). The following are the list of Tasks handled by Subscriber State machine and corresponding lambda function which gets invoked.
 
 | Action                      | Lambda                           |
 |-----------------------------|----------------------------------|
