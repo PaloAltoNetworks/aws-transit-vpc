@@ -2,25 +2,25 @@
 
 ## About
 This solution automates the Transit VPC solution with VM-Series. In the Transit VPC solution with VM-Series there are two VPCs.
- 1. A HUB VPC where Palo Alto Firewall VM-Series firewalls will be deployed
- 2. One or more Spoke VPCs located in one or more AWS accounts, where workloads are deployed
+ 1. A HUB VPC where Palo Alto Firewall VM-Series firewalls will be deployed.
+ 2. One or more Spoke VPCs located in one or more AWS accounts, where workloads are deployed.
 
-All Subscriber VPCs are connected to the Firewalls located in the Transit VPC via IPsec tunnel. All Subscriber VPCs can talk to each other by transiting over the VM-Series located in Transit VPC when you enable route propagation on the AWS Subscriber private route table. For redundancy, the VM-Series firewalls will be located in a different availability zone.
+All Subscriber VPCs are connected to the firewalls located in the Transit VPC via IPsec tunnel. All Subscriber VPCs can talk to each other by transiting over the VM-Series located in Transit VPC when you enable route propagation on the AWS Subscriber private route table. For redundancy, the VM-Series firewalls will be located in a different availability zone.
 
 ## Architecture Diagram
 ![alt text](images/detailed-flowchart.png "Architecture Diagram")
 
-## How VPN configuration triggered
-It is triggered when you add "subscribingVpc=YES/Yes/yes" tag to a AWS VPC
+## How VPN configuration is triggered
+It is triggered when you add the tag "subscribingVpc=YES/Yes/yes" to an AWS VPC
 
-## How VPN deletion triggered
-It is triggered when you change/delete "subscribingVpc" tag of/from a AWS VPC
+## How VPN deletion is triggered
+It is triggered when you change/delete the tag "subscribingVpc" tag from an AWS VPC
 
-## Design considerations
+## Design Considerations
 
-1. For redundancy there should be two PA Servers establishing VPN with each VPC and each PA server should be in separate availability zone
+1. For redundancy, there should be two VM-Series firewalls establishing VPN with each VPC. Each VM-Series firewall should be in separate availability zones.
 
-2. Each PA Group (acts as a single logical unit and has two nodes in two az for redundancy) has a limit on maximum number of VPCs (X) it can establish VPN with. When number of VPC exceeds the maximum limit that can be supported by existing number of PA Groups, a new PA Group should be created
+2. Each PA Group (acts as a single logical unit and has two nodes in two az's for redundancy) has a limit on maximum number of VPCs (X) it can establish a VPN with. When number of VPC exceeds the maximum limit that can be supported by existing number of PA Groups, a new PA Group should be created.
 
 3. When a new Subscriber VPC is created, it should automatically get associated with a PA group which has capacity
 
