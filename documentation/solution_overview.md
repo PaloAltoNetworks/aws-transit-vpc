@@ -72,16 +72,15 @@ eg:
 }
 
 ### Transit system
-This logical system takes care of automatically configuring VPN and managing resources on the "Transit"/"HUB" side. Following are few tasks done by transit system
+This logical system takes care of automatically configuring VPN and managing resources on the "Transit VPC". The Following are a few tasks handled by the transit system
 - PA Group deployment
 - Configuring bgp peering between PA Groups
-- Providing unique ASN to Subscriber for creating VGW
+- Providing unique ASN to the Subscriber for creating the VGW
 - Providing PA Group information (Node1 and Node2 ip) for CGW creation
 - Providing unique IP Pool for AWS IPSec vpn configuration
-- Configure IPSec VPN with Subscriber VPC
-- Deleting VPN with Subscriber VPC
+- Configurung the IPSec VPN with the Subscriber VPC
+- Deleting the VPN with the Subscriber VPC
 
-[Diagrmam links here]
 
 #### Components of transit system
 1. Transit SNS
@@ -96,10 +95,10 @@ This logical system takes care of automatically configuring VPN and managing res
 10. Transit State machine (AWS Stepfunction)
 
 ##### Transit SNS
-Transit SNS is an SNS created as part of Transit environment setup. Subscriber system communicates with Transit system by sending notification to TransitSns. It is also connected to TransitDecider Lambda, so any new notification will trigger TransitDecider Lambda
+Transit SNS is a Simple Notification Service created as a part of Transit VPC setup. The Subscriber VPC communicates with the Transit VPC by sending notifications to Transit SNS. It is also connected to TransitDecider Lambda, so any new notifications will trigger TransitDecider Lambda
 
 ##### Transit Task Handler / TransitDecider
-TransitDecider lambda gets invoked whenever there is a new Task pushed on to Transit SNS. It takes the task, parse the content and pushes it into HighPriorityQueue or LowPriorityQueue. All delete action and all actions which are related to rebalance (Task definition has key "Rebalance = True", indicating that task is related to Rebalance operation)
+TransitDecider lambda gets invoked whenever there is a new Task pushed to the Transit SNS. It takes the task, parses the content and pushes it to the HighPriorityQueue or LowPriorityQueue. It handles all delete actions and all actions related to rebalancing (Task definition has key "Rebalance = True", indicating that task is related to Rebalance operation)
 
 ##### BgpTunnelPool (DynamoDB Table)
 | IpSegment       | Available | N1T1            |  N1T2           | N2T1            | N2T2            |
@@ -163,10 +162,10 @@ TransitDecider lambda gets invoked whenever there is a new Task pushed on to Tra
 
 
 ##### HighPriorityQueue(or DeleteQueue)
-This is a FIFO Queue created during initialization of Transit account. All new Delete tasks and tasks related to Rebalance will be pushed on to this queue. All tasks in this queue will be processed before processing other tasks.
+This is a FIFO Queue created during initialization of the Transit VPC. All new "Delete tasks" and tasks related to Rebalancing will be pushed to this queue. All tasks in this queue will be processed before processing other tasks.
 
 ##### LowPriorityQueue(or CreateQueue)
-This is a FIFO Queue created during initialization of Transit account. All new create tasks which are not related to Rebalance will be pushed on to this task. All tasks in this queue will be processed after high priority queue is empty and after completion of Rebalance operation if it is in progress.
+This is a FIFO Queue created during initialization of the Transit VPC. All new "Create tasks" which are not related to Rebalancing will be pushed to this task. All tasks in this queue will be processed after the high priority queue is empty and after completion of the Rebalance operation if it is in progress.
 
 ##### Transit State machine (AWS Stepfunction)
 Transit State machine is built using AWS Step functions. Transit State machine will be started by TransitDeciderLambda and makes sure that only one instance of Transit State machine is running at any point in time. Once started it fetches one Task at a time from HighPriorityQueue and process them till queue is empty. Once HighPriorityQueue is empty, it checks whether Rebalance is in progress by checking for a key-value pair in DynamoDB which indicates whehter Rebalance is in progress or not (Rebalance = Yes). If there is an ongoing Rebalance, Transit
