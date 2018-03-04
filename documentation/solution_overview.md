@@ -71,7 +71,7 @@ eg:
     'TransitSnsArn': "<Transit SNS ARN>"
 }
 
-### Transit system
+### Transit VPC
 This logical system takes care of automatically configuring VPN and managing resources on the "Transit VPC". The Following are a few tasks handled by the transit system
 - PA Group deployment
 - Configuring bgp peering between PA Groups
@@ -82,7 +82,7 @@ This logical system takes care of automatically configuring VPN and managing res
 - Deleting the VPN with the Subscriber VPC
 
 
-#### Components of transit system
+#### Components of transit VPC
 1. Transit SNS
 2. Transit Task Handler (Transit decider) (lambda)
 3. BgpTunnelPool (DynamoDB Table)
@@ -170,7 +170,7 @@ This is a FIFO Queue created during initialization of the Transit VPC. All new "
 ##### Transit State machine (AWS Stepfunction)
 The Transit State machine is built using AWS Step functions. The Transit State machine will be started by TransitDeciderLambda and makes sure that only one instance of Transit State machine is running at all times. Once started, it fetches one task at a time from the HighPriorityQueue and processes them until the queue is empty. Once the HighPriorityQueue is empty, it checks whether the Rebalance function is in progress. It performs this by checking for a key-value pair in the DynamoDB table which indicates whether Rebalancing is in progress, or not in progress (Rebalance = Yes).
 
-### Subscriber system
+### Subscriber VPC
 This logical system takes care of automatically configuring the VPN at the "Subscriber" VPC. The following are few tasks done by Subscriber system
 - Detect VPC creation
 - Gather information needed to configure VPN with PA group
@@ -179,7 +179,7 @@ This logical system takes care of automatically configuring the VPN at the "Subs
 - Detect VPN delete operation and trigger VPN delete operation from Transit system
 
 
-#### Components of Subscriber system
+#### Components of Subscriber VPC
 1. Subscriber SNS
 2. CloudTrail and CloudTrailLambda
 3. SubscriberDecider Lambda
