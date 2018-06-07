@@ -4,7 +4,7 @@
         "AWS::CloudFormation::Interface": {
           "ParameterGroups": [
             { "Label": { "default": "Required Parameters" }, "Parameters": [ "TransitSNSTopicArn", "TransitAssumeRoleArn", "TransitAWSAccountNumber", "LambdaFunctionsBucketName", "CloudTrailS3BucketName", "SshKey", "az1", "az2" ] },
-            { "Label": { "default": "Default Parameters" }, "Parameters": [ "LaunchSubscriberVpc", "LambdaZipFile", "VpcCidrRange", "SubnetCidr1", "SubnetCidr2", "SubnetCidr3", "SubnetCidr4" , "trustedSource"] }
+            { "Label": { "default": "Default Parameters" }, "Parameters": [ "LaunchSubscriberVpc", "LambdaZipFile", "VpcCidrRange", "SubnetCidr1", "SubnetCidr2", "SubnetCidr3", "SubnetCidr4", "trustedSource"] }
           ]
         }
     },
@@ -255,7 +255,7 @@
             "Environment": {
                 "Variables":{
                     "subscriberConfigTable":{"Ref":"DynamoDbSubscriberConfig"},
-                    "Region": {"Ref": "AWS::Region"},
+                    "Region": {"Ref": "AWS::Region"}
                 }
             },
             "Runtime": "python3.6",
@@ -278,7 +278,7 @@
                 "subscriberSnsTopicArn":{"Ref":"SNSTopic"},
                 "subscriberConfigTable":{"Ref":"DynamoDbSubscriberConfig"},
                 "transitSnsTopicArn":{"Ref":"TransitSNSTopicArn"},
-                "Region": {"Ref": "AWS::Region"},
+                "Region": {"Ref": "AWS::Region"}
             }
         },
         "Runtime": "python3.6",
