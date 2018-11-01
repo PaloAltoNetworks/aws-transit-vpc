@@ -17,10 +17,10 @@ def lambda_handler(event,context):
             logger.info("Reading from Queue")
             receive_message=fetchFromQueue(subscriberConfig['SubscriberQueueUrl'])
             if 'Messages' in receive_message:
-                for message in receive_message['Messages']:
-                    action=message['Body']
-                    action=json.loads(action.replace('\'','\"'))
-                    return action
+                  for message in receive_message['Messages']:
+                      action=message['Body']
+                      action=json.loads(action.replace('\'','\"'))
+                      return action
             else:
                 event={'Action':'Null'}
                 return event
