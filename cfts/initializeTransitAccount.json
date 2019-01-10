@@ -39,7 +39,7 @@
           "Type": "String"
         },
         "SubscriberAWSAccountNumber": {
-          "Description": "Subscriber AWS Account number(s) required for Assume Role, Provide comma separated valid 12-digit AWS Account Number. Note: While doing stack Update, add account numbers to the existing account numbers. If you delete the existing account numbers, those accounts no longer subscriberd with TransitAccount",
+          "Description": "Subscriber AWS Account number(s) required for Assume Role, Provide comma separated valid 12-digit AWS Account Number. Note: While doing stack Update, add account numbers to the existing account numbers. If you delete the existing account numbers, those accounts no longer subscribed with TransitAccount. If the TransitAccount is also a SubscriberAccount, the TransitAccount Id must be added as well",
           "Type": "String"
         },
         "PaloAltoGroupCapacity":{
