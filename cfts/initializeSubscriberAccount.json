@@ -1,5 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Subscribing account stack for Palo Alto Transit VPC",
   "Metadata": {
         "AWS::CloudFormation::Interface": {
           "ParameterGroups": [
