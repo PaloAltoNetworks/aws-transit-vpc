@@ -242,7 +242,7 @@
     },
     "SubscriberDeciderLambda": {
         "Type": "AWS::Lambda::Function",
-        "DependsOn": ["LambdaExecutionRole","SubscrierStateMachine","SQSFifoQueue","SNSTopic"],
+        "DependsOn": ["LambdaExecutionRole","SubscriberStateMachine","SQSFifoQueue","SNSTopic"],
         "Properties": {
             "FunctionName": {"Fn::Join": ["-", ["subscriberDeciderLambda", { "Ref": "AWS::StackName" }]]},
             "Description": "subscriber Decider Lambda",
@@ -575,7 +575,7 @@
             }
         }
     },
-    "SubscrierStateMachine": {
+    "SubscriberStateMachine": {
       "Type": "AWS::StepFunctions::StateMachine",
       "Properties": {
         "DefinitionString": {
@@ -755,10 +755,10 @@
     },
     "InitializeDb": {
         "Type": "AWS::CloudFormation::CustomResource",
-        "DependsOn": ["SubscrierStateMachine", "SubscriberAssumeRole", "EnableCloudTrail", "DynamoDbSubscriberConfig", "DynamoDbSubscriberVpcVpnTable", "DynamoDbSubscriberLocalDb"],
+        "DependsOn": ["SubscriberStateMachine", "SubscriberAssumeRole", "EnableCloudTrail", "DynamoDbSubscriberConfig", "DynamoDbSubscriberVpcVpnTable", "DynamoDbSubscriberLocalDb"],
         "Properties": {
             "ServiceToken": { "Fn::GetAtt" : ["SubscriberInitializeLambda", "Arn"] },
-            "SubscriberStateMachineArn" : {"Ref":"SubscrierStateMachine"},
+            "SubscriberStateMachineArn" : {"Ref":"SubscriberStateMachine"},
             "SubscriberAssumeRoleArn": {"Fn::GetAtt": ["SubscriberAssumeRole","Arn"]},
             "SubscriberQueueUrl": {"Ref":"SQSFifoQueue"},
             "SubscriberSnsArn": {"Ref":"SNSTopic"},
@@ -789,7 +789,7 @@
   "Outputs": {
     "SubscriberStateMachineArn": {
         "Description": "Subscriber State Machine Arn",
-        "Value": {"Ref":"SubscrierStateMachine"}
+        "Value": {"Ref":"SubscriberStateMachine"}
     },
     "SubscriberAssumeRoleArn": {
         "Description": "Subscriber Assume Role ARN",
