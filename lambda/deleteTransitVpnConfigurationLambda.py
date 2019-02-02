@@ -66,7 +66,7 @@ def updateBgpTunnleIpPool(tableName,vpcId):
                 if 'VpcId' in item:
                     if item['VpcId']==vpcId:
                         table.update_item(Key={'IpSegment':item['IpSegment']},AttributeUpdates={'Available':{'Value':'YES','Action':'PUT'},'VpcId':{'Value':'Null','Action':'PUT'},'PaGroupName':{'Value':'Null','Action':'PUT'}})
-                        logger.info("Successfully updated IpSegment: {} attriburte Available to YES, and VpcId & PaGroup to Null".format(item['IpSegment']))
+                        logger.info("Successfully updated IpSegment: {} attribute Available to YES, and VpcId & PaGroup to Null".format(item['IpSegment']))
                         return
             if 'LastEvaluatedKey' in response:
                 response = table.scan(FilterExpression=Attr('VpcId').eq(vpcId),ExclusiveStartKey=response['LastEvaluatedKey'])
