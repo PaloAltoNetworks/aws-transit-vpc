@@ -61,11 +61,11 @@ def checkVpcCidrConflicts(vpcCidr,tableName):
         logger.error("Checking of CIDR confilcts failed, Error: {}".format(str(e)))
 
 def getAvailableBgpTunnelIpPool(tableName, vpcId, paGroupName):
-    """Scans the BgpTunnleIpPool table with attribute 'Avaliable=YES', if it finds any items with this condition returns that item otherwise returns false
+    """Scans the BgpTunnleIpPool table with attribute 'Available=YES', if it finds any items with this condition returns that item otherwise returns false
     Calls the updateBgpTunnleIpPool function to update the attribute 'Available' to NO
     """
     try:
-        logger.info("Fetching BgpTunnelIpPool data with fileter status=available")
+        logger.info("Fetching BgpTunnelIpPool data with filter status=available")
         table=dynamodb.Table(tableName)
         response=table.scan(FilterExpression=Attr('Available').eq('YES'))['Items']
         if response:
@@ -79,13 +79,13 @@ def getAvailableBgpTunnelIpPool(tableName, vpcId, paGroupName):
     
 def getAvailablePaGroup(tableName,maxCount):
     """Scans the PaGroupInfo table with attributes 'InUse=YES' and 'VpcCount' less than MaxPaGroupCapacity, if it finds an items it will return that item, otherwise 
-    Otherwise: it scans the table with attribute 'InUse=NO', if it finds an item it will return othrwise returns False
+    Otherwise: it scans the table with attribute 'InUse=NO', if it finds an item it will return otherwise returns False
     Calls updatePaGroup() function to update the 'InUse' to YES and increment the VpcCount by +1
     """
     try:
         table=dynamodb.Table(tableName)
         response=table.scan(FilterExpression=Attr('InUse').eq('YES') & Attr('VpcCount').lt(maxCount))['Items']
-        logger.info("PaGroup Info scan result with Fileter InUse=YES and VpcCount < {} is: {}".format(maxCount, response))
+        logger.info("PaGroup Info scan result with Filter InUse=YES and VpcCount < {} is: {}".format(maxCount, response))
         if response:
             #Logic to return the PaGroup which has nearest capacity 
             value=response[0]['VpcCount']
@@ -97,7 +97,7 @@ def getAvailablePaGroup(tableName,maxCount):
                         paGroupToReturn=item
                 else:
                     return False
-            logger.info("Returing the Pa Group which has nearest capacity, PA-Group Name: {}".format(paGroupToReturn['PaGroupName']))
+            logger.info("Returning the Pa Group which has nearest capacity, PA-Group Name: {}".format(paGroupToReturn['PaGroupName']))
             #Update PaGroupInfo Table InUse="Yes" and increment VpcCount+1
             updatePaGroup(paGroupToReturn['PaGroupName'],table)
             return paGroupToReturn
@@ -107,7 +107,7 @@ def getAvailablePaGroup(tableName,maxCount):
                 for group in response:
                     if 'N1Eip' in group:
                         #Update PaGroupInfo Table InUse="Yes" and increment VpcCount+1
-                        logger.info("Returing the PA-Group Name: {}".format(group['PaGroupName']))
+                        logger.info("Returning the PA-Group Name: {}".format(group['PaGroupName']))
                         updatePaGroup(group['PaGroupName'],table)
                         return group
                 else:
@@ -134,7 +134,7 @@ def getAvailableVgwAsn(tableName,data):
             result = updateVgwAsnTable(response[0]['VgwAsn'],data,table)
             return response[0]['VgwAsn']
         else:
-            logger.error("VgwAsn numbers are exhausted, so Pleas add some more ASN numbers to VgwAsn Table")
+            logger.error("VgwAsn numbers are exhausted, so please add some more ASN numbers to VgwAsn Table")
             sys.exit(0)
     except Exception as e:
         logger.error("getAvailableVgwAsn is failed, Error: {}".format(str(e)))
