@@ -443,10 +443,7 @@
         "Properties" : {
             "AttributeDefinitions" : [{"AttributeName" : "Property","AttributeType" : "S"}],
             "KeySchema" : [{"AttributeName" : "Property","KeyType" : "HASH"}],
-            "ProvisionedThroughput" : {
-                "ReadCapacityUnits" : "5",
-                "WriteCapacityUnits" : "5"
-            },
+            "BillingMode" : "PAY_PER_REQUEST",
             "TableName" : {"Fn::Join": ["-", ["SubscriberConfig", { "Ref": "AWS::StackName" }]]}
         }
     },
@@ -455,10 +452,7 @@
         "Properties" : {
             "AttributeDefinitions" : [{"AttributeName" : "VpcId","AttributeType" : "S"}],
             "KeySchema" : [{"AttributeName" : "VpcId", "KeyType" : "HASH"}],
-            "ProvisionedThroughput" : {
-                "ReadCapacityUnits" : "5",
-                "WriteCapacityUnits" : "5"
-            },
+            "BillingMode" : "PAY_PER_REQUEST",
             "TableName" : {"Fn::Join": ["-", ["SubscriberLocalDb", { "Ref": "AWS::StackName" }]]}
         }
     },
@@ -467,10 +461,7 @@
         "Properties" : {
             "AttributeDefinitions" : [{"AttributeName" : "VpnId","AttributeType" : "S"}],
             "KeySchema" : [{"AttributeName" : "VpnId", "KeyType" : "HASH"}],
-            "ProvisionedThroughput" : {
-                "ReadCapacityUnits" : "5",
-                "WriteCapacityUnits" : "5"
-            },
+            "BillingMode" : "PAY_PER_REQUEST",
             "TableName" : {"Fn::Join": ["-", ["SubscriberVpcVpnTable", { "Ref": "AWS::StackName" }]]}
         }
     },

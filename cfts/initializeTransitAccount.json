@@ -782,10 +782,7 @@
             "Properties" : {
                 "AttributeDefinitions" : [{"AttributeName" : "Property","AttributeType" : "S"}],
                 "KeySchema" : [{"AttributeName" : "Property","KeyType" : "HASH"}],
-                "ProvisionedThroughput" : {
-                    "ReadCapacityUnits" : "5",
-                    "WriteCapacityUnits" : "5"
-                },
+                "BillingMode" : "PAY_PER_REQUEST",
                 "TableName" : {"Fn::Join": ["-", ["TransitConfig", { "Ref": "AWS::StackName" }]]}
             }
         },
@@ -794,10 +791,7 @@
             "Properties" : {
                 "AttributeDefinitions" : [{"AttributeName" : "IpSegment","AttributeType" : "S"}],
                 "KeySchema" : [{"AttributeName" : "IpSegment", "KeyType" : "HASH"}],
-                "ProvisionedThroughput" : {
-                    "ReadCapacityUnits" : "5",
-                    "WriteCapacityUnits" : "5"
-                },
+                "BillingMode" : "PAY_PER_REQUEST",
                 "TableName" : {"Fn::Join": ["-", ["BgpTunnelIpPool", { "Ref": "AWS::StackName" }]]}
             }
         },
@@ -806,10 +800,7 @@
             "Properties" : {
                 "AttributeDefinitions" : [{"AttributeName" : "VgwAsn","AttributeType" : "S"}],
                 "KeySchema" : [{"AttributeName" : "VgwAsn", "KeyType" : "HASH"}],
-                "ProvisionedThroughput" : {
-                        "ReadCapacityUnits" : "5",
-                        "WriteCapacityUnits" : "5"
-                },
+                "BillingMode" : "PAY_PER_REQUEST",
                 "TableName" : {"Fn::Join": ["-", ["VgwAsn", { "Ref": "AWS::StackName" }]]}
             }
         },
@@ -818,10 +809,7 @@
             "Properties" : {
                 "AttributeDefinitions" : [{"AttributeName" : "VpcId","AttributeType" : "S"}],
                 "KeySchema" : [{"AttributeName" : "VpcId", "KeyType" : "HASH"}],
-                "ProvisionedThroughput" : {
-                        "ReadCapacityUnits" : "5",
-                        "WriteCapacityUnits" : "5"
-                },
+                "BillingMode" : "PAY_PER_REQUEST",
                 "TableName" : {"Fn::Join": ["-", ["VpcTable", { "Ref": "AWS::StackName" }]]}
             }
         },
@@ -830,10 +818,7 @@
             "Properties" : {
                 "AttributeDefinitions" : [{"AttributeName" : "PaGroupName","AttributeType" : "S"}],
                 "KeySchema" : [{"AttributeName" : "PaGroupName", "KeyType" : "HASH"}],
-                "ProvisionedThroughput" : {
-                    "ReadCapacityUnits" : "5",
-                    "WriteCapacityUnits" : "5"
-                },
+                "BillingMode" : "PAY_PER_REQUEST",
                 "TableName" : {"Fn::Join": ["-", ["PaGroupInfo", { "Ref": "AWS::StackName" }]]}
             }
         },
