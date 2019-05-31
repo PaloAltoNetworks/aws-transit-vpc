@@ -161,6 +161,8 @@ def lambda_handler(event, context):
             cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, "CustomResourcePhysicalID")
         else:
             cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, "CustomResourcePhysicalID")
+        #Update DynamoDB TranstiConfig Table
+        updateTransitConfig(transitConfig, event['ResourceProperties'])
     elif event['RequestType'] == 'Delete':
         s3 = boto3.resource('s3')
         bucket = s3.Bucket(bucketName)
